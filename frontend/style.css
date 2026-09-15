@@ -1,0 +1,166 @@
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.app{
+    font-family: Arial, Helvetica, sans-serif;
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-rows: 50px 660px;
+    grid-template-areas: "aside nav"
+                         "aside main";
+}
+
+nav {
+    grid-area: nav;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    padding: 0 24px;
+    background-color: #26332f;
+    color: #f4f1ea;
+    font-family: Arial, Helvetica, sans-serif;
+    border-bottom: 1px solid #3d4d47;
+}
+aside{
+    grid-area: aside;
+    background-color: rgb(241, 239, 235);
+}
+
+main {
+    grid-area: main;
+   
+   
+}
+
+section, header {
+    
+    margin: 10px;
+    padding: 20px;
+    
+    border: 1px solid gray;
+    border-radius: 10px;
+}
+
+h4{
+    padding-left: 25px;
+    padding-top: 10px;
+    margin-bottom: 30px;
+}
+
+nav strong {
+    font-size: 17px;
+    letter-spacing: 0.3px;
+}
+
+nav span {
+    font-size: 14px;
+}
+
+nav span:last-child {
+    margin-left: auto;
+    color: #b9c8c0;
+}
+
+aside ul li{
+    
+    padding: 20px;
+    padding-left: 40px; 
+    list-style: none;
+    font-size: 14px;
+    color: rgb(84, 81, 81);
+}
+
+aside a {
+    color: inherit;
+    text-decoration: none;
+}
+
+aside li:hover{
+    background-color: rgb(223, 224, 224);
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+.top{
+    display: flex;
+    align-items: center;
+    padding-bottom: 20px;
+}
+
+.search-bar {
+    display: flex;
+    margin-left: auto;
+}
+
+.search-bar input {
+    width: 220px;
+    padding: 10px 12px;
+    border: 1px solid #c4c9c5;
+    border-right: 0;
+    border-radius: 8px 0 0 8px;
+    font: inherit;
+}
+
+.search-bar button {
+    width: 42px;
+    border: 0;
+    border-radius: 0 8px 8px 0;
+    background-color: #26332f;
+    color: #f4f1ea;
+    font-size: 17px;
+    cursor: pointer;
+}
+
+.search-bar button:hover {
+    background-color: #3d4d47;
+}
+
+main ul {
+    display: flex;
+    list-style: none;
+}
+
+main ul li {
+    padding: 10px;
+    background-color: rgb(56, 108, 71);
+    color: aliceblue;
+    margin: 10px 10px;
+    border-radius: 10px;
+    flex: 1;
+}
+
+main ul li span,
+main ul li strong {
+    display: block;
+}
+
+main ul li strong {
+    margin-top: 12px;
+    font-size: 16px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #333e3b;
+}
+
+th, td {
+  padding: 8px 16px;
+  text-align: left;
+  border: none;
+}
+
+tbody tr {
+  border-bottom: 1px solid #e0dfd5;
+}
+
+thead tr {
+  border-bottom: 1px solid #e0dfd5;
+}

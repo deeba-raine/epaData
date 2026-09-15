@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Document</title>
+</head>
+<body>
+    <div class="app">
+        <nav>
+        <span>Dashboard</span>
+        <span>Last updated: Today</span>
+        </nav>
+
+        <aside>
+            <h4>Emissions watch</h4>
+        <ul>
+            <li><a href="#">Dashboard</a></li>
+            <li><a href="#">Facilities</a></li>
+            <li><a href="#">Search and Filter</a></li>
+            <li><a href="#">Trends</a></li>
+            <li><a href="#">Upload Data</a></li>
+            <li><a href="#">Export</a></li>
+        </ul>
+        </aside>
+        
+        <main>
+            <header>
+                <h2>Facilities Overview</h2>
+                <div class="top">
+                    <small>EPA CAMPdata Annual Report</small>
+                    <form class="search-bar" role="search">
+                        <input type="search" name="search" placeholder="Search facilities" aria-label="Search facilities">
+                        <button type="submit" aria-label="Search">&#128269;</button>
+                    </form>
+                </div>
+                <ul>
+                    <li>
+                        <span>Facilities</span>
+                        <strong>1,248</strong>
+                    </li>
+                    <li>
+                        <span>Total CO2</span>
+                        <strong>24,680 t</strong>
+                    </li>
+                    <li>
+                        <span>Total SO2</span>
+                        <strong>184 t</strong>
+                    </li>
+                    <li>
+                        <span>Dataset Imported</span>
+                        <strong>Sep 14, 2026</strong>
+                    </li>
+                </ul>
+            </header>
+            
+            <section>
+                <section class="trend-chart">
+                <h4>Annual emissions trend</h4>
+                <canvas id="trendChart"></canvas>
+            </section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            </section>
+            <section>
+               <table>
+            <thead>
+                <tr>
+                <th>Facility</th>
+                <th>State</th>
+                <th>Unit</th>
+                <th>CO2</th>
+                <th>SO2</th>
+                <th>Reporting Year</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <tr>
+                <td>Ghent Generating Station</td>
+                <td>KY</td>
+                <td>GHT-1</td>
+                <td>184,420</td>
+                <td>612</td>
+                <td>2025</td>
+                </tr>
+                <tr>
+                <td>Trimble County Plant</td>
+                <td>KY</td>
+                <td>TMB-1</td>
+                <td>96,654</td>
+                <td>480</td>
+                <td>2025</td>
+                </tr>
+            </tbody>
+            </table>
+
+            </section>
+        </main>
+    </div>
+</body>
+</html>
