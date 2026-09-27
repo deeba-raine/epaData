@@ -46,6 +46,42 @@ section, header {
     border-radius: 10px;
 }
 
+.trend-chart {
+    padding: 20px 24px 16px;
+}
+
+.chart-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.chart-heading h4 {
+    padding: 0;
+    margin: 0;
+    color: #26332f;
+}
+
+.chart-heading p {
+    margin-top: 6px;
+    color: #68736e;
+    font-size: 13px;
+}
+
+.chart-source {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background-color: #eef3ef;
+    color: #386c47;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.chart-container {
+    height: 300px;
+}
+
 h4{
     padding-left: 25px;
     padding-top: 10px;
@@ -163,4 +199,15 @@ tbody tr {
 
 thead tr {
   border-bottom: 1px solid #e0dfd5;
+}
+
+@media (max-width: 700px) {
+  .chart-heading {
+    gap: 12px;
+    flex-direction: column;
+  }
+
+  .chart-container {
+    height: 260px;
+  }
 }

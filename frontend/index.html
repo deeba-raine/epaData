@@ -57,11 +57,17 @@
             
             <section>
                 <section class="trend-chart">
-                <h4>Annual emissions trend</h4>
-                <canvas id="trendChart"></canvas>
-            </section>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                    <div class="chart-heading">
+                        <div>
+                            <h4>Annual emissions trend</h4>
+                            <p>Reported CO2 and SO2 emissions by year</p>
+                        </div>
+                        <span class="chart-source">Sample data</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="trendChart" aria-label="Annual CO2 and SO2 emissions trend" role="img"></canvas>
+                    </div>
+                </section>
             </section>
             <section>
                <table>
@@ -99,5 +105,8 @@
             </section>
         </main>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
