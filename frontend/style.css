@@ -9,10 +9,11 @@
 .app{
     font-family: Arial, Helvetica, sans-serif;
     display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
-    grid-template-rows: 50px 660px;
-    grid-template-areas: "aside nav"
-                         "aside main";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 50px minmax(0, 1fr);
+    grid-template-areas: "nav"
+                         "main";
+    min-height: 100vh;
 }
 
 nav {
@@ -26,15 +27,9 @@ nav {
     font-family: Arial, Helvetica, sans-serif;
     border-bottom: 1px solid #3d4d47;
 }
-aside{
-    grid-area: aside;
-    background-color: rgb(241, 239, 235);
-}
-
 main {
     grid-area: main;
-   
-   
+    width: 100%;
 }
 
 section, header {
