@@ -82,6 +82,50 @@ section, header {
     height: 300px;
 }
 
+.table-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.table-heading h4 {
+    padding: 0;
+    margin: 0;
+    color: #26332f;
+}
+
+.table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.table-actions button {
+    padding: 9px 13px;
+    border: 1px solid #386c47;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.secondary-button {
+    background-color: #ffffff;
+    color: #386c47;
+}
+
+.primary-button {
+    background-color: #386c47;
+    color: #ffffff;
+}
+
+.table-actions button:hover {
+    opacity: 0.85;
+}
+
 h4{
     padding-left: 25px;
     padding-top: 10px;
@@ -156,6 +200,38 @@ aside li:hover{
     background-color: #3d4d47;
 }
 
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 4px 0 10px;
+}
+
+.filters label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: #53615b;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.filters select {
+    min-width: 150px;
+    padding: 9px 30px 9px 10px;
+    border: 1px solid #c4c9c5;
+    border-radius: 6px;
+    background-color: #ffffff;
+    color: #26332f;
+    font: inherit;
+    font-size: 13px;
+}
+
+.filters select:focus {
+    outline: 2px solid rgba(56, 108, 71, 0.25);
+    border-color: #386c47;
+}
+
 main ul {
     display: flex;
     list-style: none;
@@ -202,6 +278,19 @@ thead tr {
 }
 
 @media (max-width: 700px) {
+  .filters {
+    flex-direction: column;
+  }
+
+  .filters select {
+    width: 100%;
+  }
+
+  .table-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .chart-heading {
     gap: 12px;
     flex-direction: column;

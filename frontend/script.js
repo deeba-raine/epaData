@@ -90,3 +90,51 @@ new Chart(document.getElementById("trendChart"), {
         }
     }
 });
+
+const exportCsvButton = document.getElementById("exportCsvButton");
+const facilitiesTable = document.getElementById("facilitiesTable");
+
+exportCsvButton.addEventListener("click", () => {
+    const rows = Array.from(facilitiesTable.querySelectorAll("tr"));
+    const csv = rows
+        .map((row) =>
+            Array.from(row.querySelectorAll("th, td"))
+                .map((cell) => `"${cell.textContent.trim().replaceAll('"', '""')}"`)
+                .join(",")
+        )
+        .join("\n");
+
+    const downloadUrl = URL.createObjectURL(
+        new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    );
+    const downloadLink = document.createElement("a");
+    downloadLink.href = downloadUrl;
+    downloadLink.download = "facility-emissions.csv";
+    downloadLink.click();
+    URL.revokeObjectURL(downloadUrl);
+});
+
+document.getElementById("uploadDataButton").addEventListener("click", () => {
+    document.getElementById("dataFileInput").click();
+});
+
+const stateFilter = document.getElementById("stateFilter");
+const facilityFilter = document.getElementById("facilityFilter");
+const yearFilter = document.getElementById("yearFilter");
+const facilityRows = facilitiesTable.querySelectorAll("tbody tr");
+
+function filterFacilityTable() {
+    facilityRows.forEach((row) => {
+        const cells = row.querySelectorAll("td");
+        const matchesState = !stateFilter.value || cells[1].textContent.trim() === stateFilter.value;
+        const matchesFacility =
+            !facilityFilter.value || cells[0].textContent.trim() === facilityFilter.value;
+        const matchesYear = !yearFilter.value || cells[5].textContent.trim() === yearFilter.value;
+
+        row.hidden = !(matchesState && matchesFacility && matchesYear);
+    });
+}
+
+[stateFilter, facilityFilter, yearFilter].forEach((filter) => {
+    filter.addEventListener("change", filterFacilityTable);
+});
