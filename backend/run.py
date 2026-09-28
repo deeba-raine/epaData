@@ -1,6 +1,7 @@
-from backend.app import create_app
+# Run App Folder To Get All Services Up
+from app import createApp
 
-app = create_app()
+app = createApp()
 
 if __name__ == "__main__":
     app.run(debug=True)
