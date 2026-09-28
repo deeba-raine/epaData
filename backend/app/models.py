@@ -14,6 +14,12 @@ class Dataset(db.Model):
     name = db.Column(db.String(160), nullable=False)
     source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"), nullable=False)
     source = db.relationship("DataSource", backref="datasets")
+    reporting_years = db.Column(db.JSON, nullable=False, default=list)
+    imported_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    filename = db.Column(db.String(255))
+    raw_records = db.Column(db.Integer, default=0, nullable=False)
+    accepted_records = db.Column(db.Integer, default=0, nullable=False)
+    notes = db.Column(db.Text, default="")
 
 
 class ImportJob(db.Model):
@@ -42,6 +48,10 @@ class Facility(db.Model):
     name = db.Column(db.String(200), nullable=False)
     state = db.Column(db.String(2))
     city = db.Column(db.String(120))
+    county = db.Column(db.String(120))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    category = db.Column(db.String(160))
 
 
 class GeneratingUnit(db.Model):
@@ -49,6 +59,9 @@ class GeneratingUnit(db.Model):
     facility_id = db.Column(db.Integer, db.ForeignKey("facility.id"), nullable=False)
     unit_id = db.Column(db.String(40), nullable=False)
     fuel_type = db.Column(db.String(80))
+    secondary_fuel = db.Column(db.String(80))
+    operating_date = db.Column(db.Date)
+    retirement_date = db.Column(db.Date)
     facility = db.relationship("Facility", backref="units")
     __table_args__ = (db.UniqueConstraint("facility_id", "unit_id", name="uq_facility_unit"),)
 
@@ -61,6 +74,17 @@ class AnnualRecord(db.Model):
     emissions_tons = db.Column(db.Float)
     generation_mwh = db.Column(db.Float)
     operating_hours = db.Column(db.Float)
+    operating_time = db.Column(db.Float)
+    gross_load = db.Column(db.Float, default=0)
+    steam_load = db.Column(db.Float, default=0)
+    heat_input = db.Column(db.Float, default=0)
+    mass_co2 = db.Column(db.Float, default=0)
+    mass_so2 = db.Column(db.Float, default=0)
+    mass_nox = db.Column(db.Float, default=0)
+    so2_control_info = db.Column(db.Text)
+    nox_control_info = db.Column(db.Text)
+    pm_control_info = db.Column(db.Text)
+    program_code = db.Column(db.String(80))
     unit = db.relationship("GeneratingUnit", backref="annual_records")
     __table_args__ = (
         db.UniqueConstraint("unit_id", "year", "pollutant", name="uq_unit_year_pollutant"),
