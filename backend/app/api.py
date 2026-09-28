@@ -1,71 +1,132 @@
+# Import Dependencies
 from flask import Blueprint, jsonify, request
-
-from backend.app import db
-from backend.app.models import DataSource, Dataset, ImportIssue, ImportJob
-from backend.app.services import EPAClient, import_records, read_upload, validate_frame
+import app.dbManagement as manage
+import app.services as serv
+import app.camApi as cam
+import pandas as pd
+import time
+import uuid
+import json
 
 api = Blueprint("api", __name__)
 
+# Upload Query Setup
+pending = {}
+timeout = 30*60
+
+def cleanupPending():
+    now = time.time()
+    # Check Pending for Expired Queries
+    expiredId = [upId for upId, upload in pending.items() if now - upload["start"] > timeout]
+    # Clean Expired Uploads
+    for id in expiredId:
+        del pending[id]
 
 @api.get("/health")
 def health():
     return jsonify({"status": "ok"})
 
+@api.post("/upload")
+def upload():
+    # Clean Pending
+    cleanupPending()
 
-@api.post("/imports/preview")
-def preview_import():
-    upload = request.files.get("file")
-    if not upload or not upload.filename:
-        return jsonify({"error": "A CSV or Excel file is required"}), 400
+    # Check File Has Been Uploaded
+    file = request.files.get("file")
+    notes = request.form.get("notes")
+    if not file or not file.filename:
+        return jsonify({"error": "Not CSV or Excel File"})
+
+    # Check Metadata Has Been Passed
+    name = request.form.get("name")
+    if not name:
+        return jsonify({"error": "Name is Required"})
+
+    # Create Default Server: Upload Instance
+    service = serv.Upload()
+
+    # Confirm Correct Fily Type
+    if not service.inputFormat(file.filename): return jsonify({"error": "Not CSV or Excel File"})
+    # Read Corresponding File Type
+    data = None
     try:
-        frame = read_upload(upload.filename, upload.read())
-        _, issues = validate_frame(frame)
-    except (ValueError, OSError) as error:
-        return jsonify({"error": str(error)}), 400
+        if service.type == 'csv':
+            data = pd.read_csv(file)
+        else:
+            data = pd.read_excel(file)
+    except pd.errors.EmptyDataError:
+        return jsonify({"error": "Empty File Given"})
 
-    source = DataSource.query.filter_by(name="EPA CAMPD").first()
-    if not source:
-        source = DataSource(name="EPA CAMPD", description="EPA Clean Air Markets data")
-        db.session.add(source)
-        db.session.flush()
-    dataset = Dataset.query.filter_by(name="CAMPD annual emissions", source_id=source.id).first()
-    if not dataset:
-        dataset = Dataset(name="CAMPD annual emissions", source_id=source.id)
-        db.session.add(dataset)
-        db.session.flush()
-    job = ImportJob(
-        dataset_id=dataset.id,
-        filename=upload.filename,
-        status="preview",
-        accepted_rows=max(len(frame) - len({issue["row"] for issue in issues if issue["row"] > 0}), 0),
-        rejected_rows=len({issue["row"] for issue in issues if issue["row"] > 0}),
-    )
-    db.session.add(job)
-    db.session.flush()
-    for issue in issues:
-        db.session.add(ImportIssue(import_job_id=job.id, row_number=issue["row"], field=issue["field"], message=issue["message"]))
-    db.session.commit()
-    return jsonify({"job_id": job.id, "status": job.status, "accepted_rows": job.accepted_rows, "rejected_rows": job.rejected_rows, "issues": issues}), 201
+    # Validate Columns
+    if not service.columnCheck(data): return jsonify({"error": "Incorrect Columns"})
 
+    # Begin Bucketing Rows
+    for item in data.itertuples():
+        # Duplicate Check
+        if not service.duplicateCheck(item): continue
+        # Issue Check Will Bucket item
+        service.reportCheck(item)
+    # Store Bucketed Data in Cache for Finish
+    reports = service.getReports()
+    duplicates = service.getDuplicates()
+    response = reports | duplicates
+    upid = str(uuid.uuid4())
+    pending[upid] = {"start": time.time(), "filename": file.filename, "notes": notes, "name": name,"data": response}
 
-@api.post("/imports/<int:job_id>/commit")
-def commit_import(job_id):
-    job = db.session.get(ImportJob, job_id)
-    if job is None:
-        return jsonify({"error": "Import job not found"}), 404
-    if job.status == "committed":
-        return jsonify({"error": "Import job is already committed"}), 409
-    upload = request.files.get("file")
-    if not upload or upload.filename != job.filename:
-        return jsonify({"error": "The original upload is required to commit this job"}), 400
-    try:
-        frame = read_upload(upload.filename, upload.read())
-        accepted, issues = import_records(frame, job.dataset, EPAClient())
-    except (ValueError, LookupError, RuntimeError, OSError) as error:
-        db.session.rollback()
-        return jsonify({"error": str(error)}), 502
-    job.status = "committed"
-    job.accepted_rows = accepted
-    job.rejected_rows = len({issue["row"] for issue in issues if issue["row"] > 0})
-    db.session.commit()
-    return jsonify({"job_id": job.id, "status": job.status, "accepted_rows": accepted, "issues": issues}), 200
+    # Return Report Information
+    report = response.copy()
+    report["Indexes"] = list(report["Indexes"])
+    return jsonify({"uploadID": upid} | report)
+
+@api.post("/finishUpload")
+def upRespond():
+    # Clean Pending
+    cleanupPending()
+
+    # Two Checkboxes As Input, Get Both Booleans
+    pushAccept = 'push' in request.form
+    pushQuestion = 'question' in request.form
+
+    # Pull Data Out of Pending
+    upid = request.form.get("uploadID")
+    if upid is None:
+        return jsonify({"error": "Request Has Expired"})
+    stored = pending.pop(upid, None)
+    if stored is None:
+        return jsonify({"error": "Bad Storage Request"})
+
+    # If not Accepted, Return 
+    if not pushAccept:
+        return jsonify({"message": "Changes Reverted"})
+    
+    # Retrieve Needed Information
+    data = stored['data']
+    # Metadata
+    years = set()
+    raw = len(data["Indexes"]) + len(data["Valid"]["items"]) + len(data["Invalid"]["items"]) + len(data["Warning"]["items"])
+    accepted = len(data["Valid"]["items"])
+
+    # Flush All Accepted Items
+    for item in data["Valid"]["items"]:
+        if manage.createRecord(item):
+            years.add(getattr(item, 'Year'))
+        else:
+            accepted -= 1
+            continue
+
+    # Check if Questionable was Pushed
+    if pushQuestion:
+        # Push All Questionable Records
+        accepted += len(data["Warning"]["items"])
+        for item in data["Warning"]["items"]:
+            if manage.createRecord(item):
+                years.add(getattr(item, 'Year'))
+            else:
+                accepted -= 1
+                continue
+    # Gather Dataset Attributes
+    attributes = [stored['name'], 'upload', json.dumps(list(years)), stored['filename'], raw, 
+                  accepted, stored['notes']]
+    # Push To Database and Return *Dataset Push Commits Chenges*
+    manage.createDataset(attributes)
+    return jsonify({"message": "Changes Pushed"})
