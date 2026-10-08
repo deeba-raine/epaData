@@ -4,71 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
-    <title>Document</title>
+    <title>epaData | Emissions Explorer</title>
 </head>
 <body>
-    <div class="app">
-        <nav>
-        <span>Dashboard</span>
-        <span>Last updated: Today</span>
+<div class="app">
+    <aside class="sidebar" aria-label="Main navigation">
+        <div class="brand">epaData<small>Emissions explorer</small></div>
+        <nav id="sideNav">
+            <button type="button" data-view="dashboard" class="active">Dashboard</button>
+            <button type="button" data-view="search">Search facilities</button>
+            <button type="button" data-view="upload">Upload data</button>
+            <button type="button" data-view="epa">EPA data service</button>
         </nav>
+        <p class="side-note">Source: EPA CAMPD annual emissions</p>
+    </aside>
+
+    <div class="content">
+        <nav class="topbar">
+            <span id="viewTitle">Dashboard</span>
+            <span>Last updated: <span id="lastUpdated">Sep 14, 2026</span></span>
+        </nav>
+        <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
         <main>
-            <header>
-                <h2>Facilities Overview</h2>
-                <div class="top">
-                    <small>EPA CAMPdata Annual Report</small>
-                    <form class="search-bar" role="search">
-                        <input type="search" name="search" placeholder="Search facilities" aria-label="Search facilities">
-                        <button type="submit" aria-label="Search">&#128269;</button>
-                    </form>
-                </div>
-                <div class="filters" aria-label="Filter facility data">
-                    <label for="stateFilter">
-                        State
-                        <select id="stateFilter">
-                            <option value="">All states</option>
-                            <option value="KY">KY</option>
-                        </select>
-                    </label>
-                    <label for="facilityFilter">
-                        Facility
-                        <select id="facilityFilter">
-                            <option value="">All facilities</option>
-                            <option value="Ghent Generating Station">Ghent Generating Station</option>
-                            <option value="Trimble County Plant">Trimble County Plant</option>
-                        </select>
-                    </label>
-                    <label for="yearFilter">
-                        Year
-                        <select id="yearFilter">
-                            <option value="">All years</option>
-                            <option value="2025">2025</option>
-                        </select>
-                    </label>
-                </div>
-                <ul>
-                    <li>
-                        <span>Facilities</span>
-                        <strong>1,248</strong>
-                    </li>
-                    <li>
-                        <span>Total CO2</span>
-                        <strong>24,680 t</strong>
-                    </li>
-                    <li>
-                        <span>Total SO2</span>
-                        <strong>184 t</strong>
-                    </li>
-                    <li>
-                        <span>Dataset Imported</span>
-                        <strong>Sep 14, 2026</strong>
-                    </li>
-                </ul>
-            </header>
-            
-            <section>
-                <section class="trend-chart">
+            <!-- DASHBOARD -->
+            <section class="view" id="view-dashboard">
+                <header>
+                    <h2>Facilities Overview</h2>
+                    <div class="top">
+                        <small>EPA CAMPdata Annual Report</small>
+                        <form class="search-bar" id="quickSearch" role="search">
+                            <input type="search" name="search" placeholder="Search facilities" aria-label="Search facilities">
+                            <button type="submit" aria-label="Search">&#128269;</button>
+                        </form>
+                    </div>
+                    <div class="filters" aria-label="Filter facility data">
+                        <label for="stateFilter">State
+                            <select id="stateFilter"><option value="">All states</option></select>
+                        </label>
+                        <label for="facilityFilter">Facility
+                            <select id="facilityFilter"><option value="">All facilities</option></select>
+                        </label>
+                        <label for="yearFilter">Year
+                            <select id="yearFilter"><option value="">All years</option></select>
+                        </label>
+                    </div>
+                    <ul class="kpis">
+                        <li><span>Facilities</span><strong id="kpiFacilities">0</strong></li>
+                        <li><span>Total CO2</span><strong id="kpiCo2">0 t</strong></li>
+                        <li><span>Total SO2</span><strong id="kpiSo2">0 t</strong></li>
+                        <li><span>Dataset imported</span><strong id="kpiImported">Sep 14, 2026</strong></li>
+                    </ul>
+                </header>
+
+                <section class="panel trend-chart">
                     <div class="chart-heading">
                         <div>
                             <h4>Annual emissions trend</h4>
@@ -80,54 +69,140 @@
                         <canvas id="trendChart" aria-label="Annual CO2 and SO2 emissions trend" role="img"></canvas>
                     </div>
                 </section>
-            </section>
-            <section>
-                <div class="table-heading">
-                    <h4>Facility emissions</h4>
-                    <div class="table-actions">
-                        <button type="button" id="exportCsvButton" class="secondary-button">Export CSV</button>
-                        <button type="button" id="uploadDataButton" class="secondary-button">Upload Data</button>
-                        <button type="button" id="viewFullTableButton" class="primary-button">View full table</button>
+
+                <section class="panel">
+                    <div class="table-heading">
+                        <h4>Facility emissions</h4>
+                        <div class="table-actions">
+                            <button type="button" id="exportCsvButton" class="secondary-button">Export CSV</button>
+                            <button type="button" id="uploadDataButton" class="secondary-button">Upload Data</button>
+                            <button type="button" id="viewFullTableButton" class="primary-button">View full table</button>
+                        </div>
                     </div>
-                </div>
-                <input type="file" id="dataFileInput" accept=".csv,text/csv" hidden>
-                <table id="facilitiesTable">
-                    <thead>
-                        <tr>
-                        <th>Facility</th>
-                        <th>State</th>
-                        <th>Unit</th>
-                        <th>CO2</th>
-                        <th>SO2</th>
-                        <th>Reporting Year</th>
-                        </tr>
-                    </thead>
+                    <div class="table-wrap">
+                        <table id="facilitiesTable">
+                            <thead><tr><th>Facility</th><th>State</th><th>Unit</th><th>Fuel</th><th class="num">CO2 (t)</th><th class="num">SO2 (t)</th><th>Reporting Year</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <p class="muted" id="dashCount"></p>
+                </section>
+            </section>
 
-                    <tbody>
-                        <tr>
-                        <td>Ghent Generating Station</td>
-                        <td>KY</td>
-                        <td>GHT-1</td>
-                        <td>184,420</td>
-                        <td>612</td>
-                        <td>2025</td>
-                        </tr>
-                        <tr>
-                        <td>Trimble County Plant</td>
-                        <td>KY</td>
-                        <td>TMB-1</td>
-                        <td>96,654</td>
-                        <td>480</td>
-                        <td>2025</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- SEARCH -->
+            <section class="view" id="view-search" hidden>
+                <header><h2>Search facilities</h2></header>
+                <section class="panel">
+                    <div class="tabs" role="tablist">
+                        <button type="button" role="tab" data-tab="basic" class="active">Basic</button>
+                        <button type="button" role="tab" data-tab="advanced">Advanced</button>
+                        <button type="button" role="tab" data-tab="describe">Describe it</button>
+                    </div>
 
+                    <form id="basicForm" class="tab-pane" data-pane="basic">
+                        <label class="grow">Facility name, facility ID or unit ID
+                            <input type="search" id="bQuery" placeholder="e.g. Ghent, 1356 or TMB-1">
+                        </label>
+                        <label>State <select id="bState"><option value="">Any</option></select></label>
+                        <label>Year <select id="bYear"><option value="">Any</option></select></label>
+                        <label>Fuel <select id="bFuel"><option value="">Any</option></select></label>
+                        <button class="primary-button" type="submit">Search</button>
+                        <button class="secondary-button" type="reset" id="bReset">Clear</button>
+                    </form>
+
+                    <form id="advForm" class="tab-pane" data-pane="advanced" hidden>
+                        <p class="muted">Every condition must match. Example: State = KY and CO2 &gt; 500000.</p>
+                        <div id="condRows"></div>
+                        <div class="row-actions">
+                            <button type="button" class="secondary-button" id="addCond">Add condition</button>
+                            <button type="submit" class="primary-button">Run search</button>
+                        </div>
+                    </form>
+
+                    <form id="descForm" class="tab-pane" data-pane="describe" hidden>
+                        <label class="grow">Describe what you need
+                            <input type="text" id="dText" placeholder="Find coal units in Kentucky with high CO2 emissions">
+                        </label>
+                        <button class="primary-button" type="submit">Find units</button>
+                        <div class="interp" id="interp" hidden></div>
+                    </form>
+                </section>
+
+                <section class="panel">
+                    <div class="table-heading">
+                        <h4>Results <span class="muted" id="resCount"></span></h4>
+                        <div class="table-actions">
+                            <label class="inline">Rows
+                                <select id="pageSize"><option>10</option><option>25</option><option>50</option></select>
+                            </label>
+                            <button type="button" class="secondary-button" id="downloadResults">Download CSV</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table id="resultsTable">
+                            <thead><tr>
+                                <th data-key="facility" tabindex="0">Facility</th>
+                                <th data-key="id" tabindex="0">Facility ID</th>
+                                <th data-key="state" tabindex="0">State</th>
+                                <th data-key="unit" tabindex="0">Unit</th>
+                                <th data-key="fuel" tabindex="0">Fuel</th>
+                                <th data-key="co2" class="num" tabindex="0">CO2 (t)</th>
+                                <th data-key="so2" class="num" tabindex="0">SO2 (t)</th>
+                                <th data-key="year" tabindex="0">Year</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="pager">
+                        <button type="button" class="secondary-button" id="prevPage">Previous</button>
+                        <span id="pageInfo"></span>
+                        <button type="button" class="secondary-button" id="nextPage">Next</button>
+                    </div>
+                </section>
+            </section>
+
+            <!-- UPLOAD -->
+            <section class="view" id="view-upload" hidden>
+                <header><h2>Upload data</h2></header>
+                <section class="panel">
+                    <p class="muted">Upload a CSV with the columns below. Valid rows are imported; invalid rows are listed so you can fix them.</p>
+                    <code class="cols">facility, facility_id, state, unit, fuel, year, co2, so2</code>
+                    <input type="file" id="dataFileInput" accept=".csv,text/csv" hidden>
+                    <div id="dropZone" class="drop" tabindex="0" role="button">
+                        <strong>Drop a CSV here</strong> or choose a file
+                    </div>
+                    <div class="row-actions">
+                        <button type="button" class="secondary-button" id="templateButton">Download template</button>
+                        <button type="button" class="primary-button" id="importButton" disabled>Import valid rows</button>
+                    </div>
+                    <div id="uploadReport" hidden></div>
+                </section>
+            </section>
+
+            <!-- EPA SERVICE -->
+            <section class="view" id="view-epa" hidden>
+                <header><h2>EPA data service</h2></header>
+                <section class="panel">
+                    <p class="muted">Data comes from the EPA Clean Air Markets Program Data (CAMPD) service. The app requests annual unit-level emissions, then stores them in the local SQLite database through the back end.</p>
+                    <form id="epaForm" class="inline-form">
+                        <label>State <select id="eState"></select></label>
+                        <label>From year <select id="eFrom"></select></label>
+                        <label>To year <select id="eTo"></select></label>
+                        <button class="primary-button" type="submit">Retrieve from EPA</button>
+                    </form>
+                    <ol class="steps">
+                        <li>Request annual emissions for the chosen state and years.</li>
+                        <li>Check each record and skip incomplete ones.</li>
+                        <li>Save facilities, units and yearly emissions to the database.</li>
+                    </ol>
+                    <ul class="log" id="epaLog" aria-live="polite"><li class="muted">No retrievals yet.</li></ul>
+                </section>
             </section>
         </main>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="script.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="script.js"></script>
 </body>
 </html>

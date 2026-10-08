@@ -1,18 +1,221 @@
-// Replace this hardcoded array with the database/API response when it is available.
-const emissionsData = [
-    { year: "2021", co2: 22800, so2: 245 },
-    { year: "2022", co2: 24150, so2: 218 },
-    { year: "2023", co2: 23680, so2: 202 },
-    { year: "2024", co2: 25240, so2: 191 },
-    { year: "2025", co2: 24680, so2: 184 }
+// Replace this generated sample data with the database/API response when it is available.
+// API: facility rows should come from the Flask route that queries SQLite through SQLAlchemy.
+const facilityList = [
+    { name: "Ghent Generating Station", state: "KY", id: "1356", fuel: "Coal" },
+    { name: "Trimble County Plant", state: "KY", id: "6071", fuel: "Coal" },
+    { name: "Mill Creek Station", state: "KY", id: "1364", fuel: "Coal" },
+    { name: "Paradise Fossil Plant", state: "KY", id: "1378", fuel: "Coal" },
+    { name: "Cane Run Station", state: "KY", id: "1363", fuel: "Natural gas" },
+    { name: "Gibson Generating Station", state: "IN", id: "6113", fuel: "Coal" },
+    { name: "Sullivan Plant", state: "IN", id: "1010", fuel: "Natural gas" },
+    { name: "Cumberland Fossil Plant", state: "TN", id: "3399", fuel: "Coal" },
+    { name: "Kyger Creek Station", state: "OH", id: "2876", fuel: "Coal" },
+    { name: "Mountaineer Plant", state: "WV", id: "6264", fuel: "Coal" }
 ];
 
+function buildSampleData() {
+    let seed = 42;
+    const random = () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+    };
+    const rows = [];
+
+    facilityList.forEach((facility) => {
+        for (let unitNumber = 1; unitNumber <= 2; unitNumber++) {
+            const isCoal = facility.fuel === "Coal";
+            const baseCo2 = isCoal ? 350000 + random() * 600000 : 80000 + random() * 170000;
+
+            for (let year = 2021; year <= 2025; year++) {
+                const change = 1 - (year - 2021) * 0.04 + (random() - 0.5) * 0.08;
+                const baseSo2 = isCoal ? 400 + random() * 1100 : 5 + random() * 25;
+
+                rows.push({
+                    facility: facility.name,
+                    id: facility.id,
+                    state: facility.state,
+                    unit: `${facility.name.slice(0, 3).toUpperCase()}-${unitNumber}`,
+                    fuel: facility.fuel,
+                    year: year,
+                    co2: Math.round(baseCo2 * change),
+                    so2: Math.round(baseSo2 * change)
+                });
+            }
+        }
+    });
+
+    return rows;
+}
+
+let facilityData = buildSampleData();
+let importedOn = "Sep 14, 2026";
+
+const csvColumns = ["facility", "id", "state", "unit", "fuel", "year", "co2", "so2"];
+const numericFields = ["year", "co2", "so2"];
+
+/* ---------- helpers ---------- */
+
+function getUniqueValues(field) {
+    return [...new Set(facilityData.map((row) => row[field]))].sort();
+}
+
+function fillSelect(select, values, keepFirstOption = true) {
+    const firstOption = keepFirstOption && select.options[0] ? select.options[0].outerHTML : "";
+    select.innerHTML =
+        firstOption + values.map((value) => `<option value="${value}">${value}</option>`).join("");
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+}
+
+function showMessage(message) {
+    const toast = document.getElementById("toast");
+    toast.textContent = message;
+    toast.hidden = false;
+    clearTimeout(showMessage.timer);
+    showMessage.timer = setTimeout(() => {
+        toast.hidden = true;
+    }, 3500);
+}
+
+function rowsToCsv(rows) {
+    const quote = (value) => `"${String(value).replaceAll('"', '""')}"`;
+    const lines = rows.map((row) => csvColumns.map((column) => quote(row[column])).join(","));
+    return [csvColumns.join(","), ...lines].join("\n");
+}
+
+function downloadCsv(fileName, csv) {
+    const downloadUrl = URL.createObjectURL(
+        new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    );
+    const downloadLink = document.createElement("a");
+    downloadLink.href = downloadUrl;
+    downloadLink.download = fileName;
+    downloadLink.click();
+    URL.revokeObjectURL(downloadUrl);
+}
+
+/* ---------- sidebar navigation ---------- */
+
+const viewTitles = {
+    dashboard: "Dashboard",
+    search: "Search facilities",
+    upload: "Upload data",
+    epa: "EPA data service"
+};
+
+function showView(viewName) {
+    document.querySelectorAll(".view").forEach((view) => {
+        view.hidden = view.id !== `view-${viewName}`;
+    });
+    document.querySelectorAll("#sideNav button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.view === viewName);
+    });
+    document.getElementById("viewTitle").textContent = viewTitles[viewName];
+
+    if (viewName === "search" && searchResults === null) {
+        runSearch([]);
+    }
+}
+
+document.getElementById("sideNav").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (button) {
+        showView(button.dataset.view);
+    }
+});
+
+/* ---------- dashboard: filters, summary cards, table ---------- */
+
+const stateFilter = document.getElementById("stateFilter");
+const facilityFilter = document.getElementById("facilityFilter");
+const yearFilter = document.getElementById("yearFilter");
+const facilitiesTable = document.getElementById("facilitiesTable");
+
+function getDashboardRows() {
+    return facilityData.filter((row) => {
+        const matchesState = !stateFilter.value || row.state === stateFilter.value;
+        const matchesFacility = !facilityFilter.value || row.facility === facilityFilter.value;
+        const matchesYear = !yearFilter.value || String(row.year) === yearFilter.value;
+
+        return matchesState && matchesFacility && matchesYear;
+    });
+}
+
+function fillFilters() {
+    fillSelect(stateFilter, getUniqueValues("state"));
+    fillSelect(facilityFilter, getUniqueValues("facility"));
+    fillSelect(yearFilter, getUniqueValues("year"));
+    fillSelect(document.getElementById("bState"), getUniqueValues("state"));
+    fillSelect(document.getElementById("bYear"), getUniqueValues("year"));
+    fillSelect(document.getElementById("bFuel"), getUniqueValues("fuel"));
+}
+
+function sumBy(rows, field) {
+    return rows.reduce((total, row) => total + row[field], 0);
+}
+
+function renderDashboard() {
+    const rows = getDashboardRows();
+    const shownRows = rows.slice(0, 8);
+
+    document.getElementById("kpiFacilities").textContent = new Set(
+        rows.map((row) => row.id)
+    ).size.toLocaleString();
+    document.getElementById("kpiCo2").textContent = `${sumBy(rows, "co2").toLocaleString()} t`;
+    document.getElementById("kpiSo2").textContent = `${sumBy(rows, "so2").toLocaleString()} t`;
+    document.getElementById("kpiImported").textContent = importedOn;
+    document.getElementById("lastUpdated").textContent = importedOn;
+
+    facilitiesTable.querySelector("tbody").innerHTML = shownRows.length
+        ? shownRows
+              .map(
+                  (row) => `
+                    <tr>
+                        <td>${escapeHtml(row.facility)}</td>
+                        <td>${escapeHtml(row.state)}</td>
+                        <td>${escapeHtml(row.unit)}</td>
+                        <td>${escapeHtml(row.fuel)}</td>
+                        <td class="num">${row.co2.toLocaleString()}</td>
+                        <td class="num">${row.so2.toLocaleString()}</td>
+                        <td>${row.year}</td>
+                    </tr>`
+              )
+              .join("")
+        : `<tr><td class="empty" colspan="7">No records match these filters. Reset a filter to see more.</td></tr>`;
+
+    document.getElementById("dashCount").textContent =
+        `Showing ${shownRows.length} of ${rows.length.toLocaleString()} records.`;
+
+    updateChart(rows);
+}
+
+[stateFilter, facilityFilter, yearFilter].forEach((filter) => {
+    filter.addEventListener("change", renderDashboard);
+});
+
+/* ---------- dashboard: trend chart ---------- */
+
+function getEmissionsByYear(rows) {
+    const years = [...new Set(rows.map((row) => row.year))].sort();
+
+    return years.map((year) => {
+        const yearRows = rows.filter((row) => row.year === year);
+        return { year: String(year), co2: sumBy(yearRows, "co2"), so2: sumBy(yearRows, "so2") };
+    });
+}
+
 const chartData = {
-    labels: emissionsData.map((entry) => entry.year),
+    labels: [],
     datasets: [
         {
             label: "CO2 (t)",
-            data: emissionsData.map((entry) => entry.co2),
+            data: [],
             borderColor: "#386c47",
             backgroundColor: "rgba(56, 108, 71, 0.12)",
             borderWidth: 3,
@@ -24,7 +227,7 @@ const chartData = {
         },
         {
             label: "SO2 (t)",
-            data: emissionsData.map((entry) => entry.so2),
+            data: [],
             borderColor: "#c47a2c",
             backgroundColor: "#c47a2c",
             borderWidth: 3,
@@ -37,7 +240,7 @@ const chartData = {
     ]
 };
 
-new Chart(document.getElementById("trendChart"), {
+const trendChart = new Chart(document.getElementById("trendChart"), {
     type: "line",
     data: chartData,
     options: {
@@ -91,50 +294,636 @@ new Chart(document.getElementById("trendChart"), {
     }
 });
 
-const exportCsvButton = document.getElementById("exportCsvButton");
-const facilitiesTable = document.getElementById("facilitiesTable");
+function updateChart(rows) {
+    const emissionsData = getEmissionsByYear(rows);
 
-exportCsvButton.addEventListener("click", () => {
-    const rows = Array.from(facilitiesTable.querySelectorAll("tr"));
-    const csv = rows
-        .map((row) =>
-            Array.from(row.querySelectorAll("th, td"))
-                .map((cell) => `"${cell.textContent.trim().replaceAll('"', '""')}"`)
-                .join(",")
-        )
-        .join("\n");
+    trendChart.data.labels = emissionsData.map((entry) => entry.year);
+    trendChart.data.datasets[0].data = emissionsData.map((entry) => entry.co2);
+    trendChart.data.datasets[1].data = emissionsData.map((entry) => entry.so2);
+    trendChart.update();
+}
 
-    const downloadUrl = URL.createObjectURL(
-        new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    );
-    const downloadLink = document.createElement("a");
-    downloadLink.href = downloadUrl;
-    downloadLink.download = "facility-emissions.csv";
-    downloadLink.click();
-    URL.revokeObjectURL(downloadUrl);
+/* ---------- dashboard: buttons ---------- */
+
+document.getElementById("exportCsvButton").addEventListener("click", () => {
+    downloadCsv("facility-emissions.csv", rowsToCsv(getDashboardRows()));
 });
 
 document.getElementById("uploadDataButton").addEventListener("click", () => {
-    document.getElementById("dataFileInput").click();
+    showView("upload");
 });
 
-const stateFilter = document.getElementById("stateFilter");
-const facilityFilter = document.getElementById("facilityFilter");
-const yearFilter = document.getElementById("yearFilter");
-const facilityRows = facilitiesTable.querySelectorAll("tbody tr");
+document.getElementById("viewFullTableButton").addEventListener("click", () => {
+    const conditions = [];
 
-function filterFacilityTable() {
-    facilityRows.forEach((row) => {
-        const cells = row.querySelectorAll("td");
-        const matchesState = !stateFilter.value || cells[1].textContent.trim() === stateFilter.value;
-        const matchesFacility =
-            !facilityFilter.value || cells[0].textContent.trim() === facilityFilter.value;
-        const matchesYear = !yearFilter.value || cells[5].textContent.trim() === yearFilter.value;
+    if (stateFilter.value) {
+        conditions.push({ field: "state", operator: "=", value: stateFilter.value });
+    }
+    if (facilityFilter.value) {
+        conditions.push({ field: "facility", operator: "=", value: facilityFilter.value });
+    }
+    if (yearFilter.value) {
+        conditions.push({ field: "year", operator: "=", value: yearFilter.value });
+    }
 
-        row.hidden = !(matchesState && matchesFacility && matchesYear);
+    showView("search");
+    runSearch(conditions);
+});
+
+document.getElementById("quickSearch").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const query = event.target.search.value.trim();
+
+    showView("search");
+    runSearch(query ? [{ field: "any", operator: "contains", value: query }] : []);
+});
+
+/* ---------- search: matching, sorting, pagination ---------- */
+
+const fieldLabels = {
+    any: "Name / ID / unit",
+    facility: "Facility",
+    id: "Facility ID",
+    unit: "Unit ID",
+    state: "State",
+    fuel: "Fuel",
+    year: "Year",
+    co2: "CO2 (t)",
+    so2: "SO2 (t)"
+};
+const operators = ["=", "≠", ">", "≥", "<", "≤", "contains"];
+
+let searchResults = null;
+let sortKey = "co2";
+let sortDirection = "desc";
+let currentPage = 1;
+
+function matchesCondition(row, condition) {
+    if (condition.field === "any") {
+        const text = String(condition.value).toLowerCase();
+        return [row.facility, row.id, row.unit].some((value) =>
+            String(value).toLowerCase().includes(text)
+        );
+    }
+
+    let rowValue = row[condition.field];
+    let searchValue = condition.value;
+
+    if (numericFields.includes(condition.field)) {
+        rowValue = Number(rowValue);
+        searchValue = Number(String(searchValue).replaceAll(",", ""));
+    } else {
+        rowValue = String(rowValue).toLowerCase();
+        searchValue = String(searchValue).toLowerCase();
+    }
+
+    switch (condition.operator) {
+        case "=":
+            return rowValue === searchValue;
+        case "≠":
+            return rowValue !== searchValue;
+        case ">":
+            return rowValue > searchValue;
+        case "≥":
+            return rowValue >= searchValue;
+        case "<":
+            return rowValue < searchValue;
+        case "≤":
+            return rowValue <= searchValue;
+        case "contains":
+            return String(rowValue).includes(String(searchValue));
+        default:
+            return true;
+    }
+}
+
+// API: replace this filter with a request that sends the conditions to the back end.
+function runSearch(conditions) {
+    searchResults = facilityData.filter((row) =>
+        conditions.every((condition) => matchesCondition(row, condition))
+    );
+    currentPage = 1;
+    renderResults();
+}
+
+const resultsTable = document.getElementById("resultsTable");
+const pageSizeSelect = document.getElementById("pageSize");
+const previousPageButton = document.getElementById("prevPage");
+const nextPageButton = document.getElementById("nextPage");
+
+function renderResults() {
+    const pageSize = Number(pageSizeSelect.value);
+    const sortedRows = [...searchResults].sort((a, b) => {
+        const first = a[sortKey];
+        const second = b[sortKey];
+        const difference =
+            typeof first === "number" ? first - second : String(first).localeCompare(String(second));
+
+        return sortDirection === "asc" ? difference : -difference;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+    currentPage = Math.min(currentPage, totalPages);
+    const pageRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+    resultsTable.querySelector("tbody").innerHTML = pageRows.length
+        ? pageRows
+              .map(
+                  (row) => `
+                    <tr>
+                        <td>${escapeHtml(row.facility)}</td>
+                        <td>${escapeHtml(row.id)}</td>
+                        <td>${escapeHtml(row.state)}</td>
+                        <td>${escapeHtml(row.unit)}</td>
+                        <td>${escapeHtml(row.fuel)}</td>
+                        <td class="num">${row.co2.toLocaleString()}</td>
+                        <td class="num">${row.so2.toLocaleString()}</td>
+                        <td>${row.year}</td>
+                    </tr>`
+              )
+              .join("")
+        : `<tr><td class="empty" colspan="8">No records match. Remove a condition or widen a range.</td></tr>`;
+
+    document.getElementById("resCount").textContent = `(${sortedRows.length.toLocaleString()} records)`;
+    document.getElementById("pageInfo").textContent = `Page ${currentPage} of ${totalPages}`;
+    previousPageButton.disabled = currentPage <= 1;
+    nextPageButton.disabled = currentPage >= totalPages;
+
+    resultsTable.querySelectorAll("th[data-key]").forEach((header) => {
+        if (header.dataset.key === sortKey) {
+            header.setAttribute("aria-sort", sortDirection === "asc" ? "ascending" : "descending");
+        } else {
+            header.setAttribute("aria-sort", "none");
+        }
     });
 }
 
-[stateFilter, facilityFilter, yearFilter].forEach((filter) => {
-    filter.addEventListener("change", filterFacilityTable);
+resultsTable.querySelector("thead").addEventListener("click", (event) => {
+    const header = event.target.closest("th[data-key]");
+    if (!header) {
+        return;
+    }
+
+    sortDirection = sortKey === header.dataset.key && sortDirection === "asc" ? "desc" : "asc";
+    sortKey = header.dataset.key;
+    renderResults();
 });
+
+resultsTable.querySelector("thead").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.target.click();
+    }
+});
+
+previousPageButton.addEventListener("click", () => {
+    currentPage--;
+    renderResults();
+});
+
+nextPageButton.addEventListener("click", () => {
+    currentPage++;
+    renderResults();
+});
+
+pageSizeSelect.addEventListener("change", () => {
+    currentPage = 1;
+    renderResults();
+});
+
+document.getElementById("downloadResults").addEventListener("click", () => {
+    if (searchResults) {
+        downloadCsv("search-results.csv", rowsToCsv(searchResults));
+    }
+});
+
+/* ---------- search: tabs ---------- */
+
+document.querySelector(".tabs").addEventListener("click", (event) => {
+    const tab = event.target.closest("button");
+    if (!tab) {
+        return;
+    }
+
+    document.querySelectorAll(".tabs button").forEach((button) => {
+        button.classList.toggle("active", button === tab);
+    });
+    document.querySelectorAll(".tab-pane").forEach((pane) => {
+        pane.hidden = pane.dataset.pane !== tab.dataset.tab;
+    });
+});
+
+/* ---------- search: basic ---------- */
+
+const basicForm = document.getElementById("basicForm");
+
+basicForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const conditions = [];
+    const query = document.getElementById("bQuery").value.trim();
+
+    if (query) {
+        conditions.push({ field: "any", operator: "contains", value: query });
+    }
+
+    [
+        ["state", "bState"],
+        ["year", "bYear"],
+        ["fuel", "bFuel"]
+    ].forEach(([field, selectId]) => {
+        const value = document.getElementById(selectId).value;
+        if (value) {
+            conditions.push({ field: field, operator: "=", value: value });
+        }
+    });
+
+    runSearch(conditions);
+});
+
+basicForm.addEventListener("reset", () => {
+    setTimeout(() => runSearch([]), 0);
+});
+
+/* ---------- search: advanced (multi-constraint) ---------- */
+
+const conditionRows = document.getElementById("condRows");
+
+function addConditionRow(preset = { field: "state", operator: "=", value: "" }) {
+    const row = document.createElement("div");
+    row.className = "cond";
+
+    const fieldOptions = Object.entries(fieldLabels)
+        .filter(([field]) => field !== "any")
+        .map(([field, label]) => `<option value="${field}">${label}</option>`)
+        .join("");
+    const operatorOptions = operators.map((operator) => `<option>${operator}</option>`).join("");
+
+    row.innerHTML = `
+        <select class="field" aria-label="Field">${fieldOptions}</select>
+        <select class="operator" aria-label="Operator">${operatorOptions}</select>
+        <input class="value" aria-label="Value" placeholder="Value" required>
+        <button type="button" class="remove" aria-label="Remove condition">Remove</button>`;
+
+    row.querySelector(".field").value = preset.field;
+    row.querySelector(".operator").value = preset.operator;
+    row.querySelector(".value").value = preset.value;
+    row.querySelector(".remove").addEventListener("click", () => row.remove());
+
+    conditionRows.append(row);
+}
+
+document.getElementById("addCond").addEventListener("click", () => addConditionRow());
+
+document.getElementById("advForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const conditions = Array.from(conditionRows.querySelectorAll(".cond")).map((row) => ({
+        field: row.querySelector(".field").value,
+        operator: row.querySelector(".operator").value,
+        value: row.querySelector(".value").value.trim()
+    }));
+
+    runSearch(conditions);
+});
+
+/* ---------- search: description-based ---------- */
+
+const stateNames = {
+    kentucky: "KY",
+    tennessee: "TN",
+    ohio: "OH",
+    indiana: "IN",
+    "west virginia": "WV",
+    virginia: "VA",
+    illinois: "IL",
+    texas: "TX"
+};
+
+// Turns a sentence into search conditions with simple keyword rules.
+function interpretDescription(text) {
+    const lowerText = text.toLowerCase();
+    const conditions = [];
+
+    Object.entries(stateNames).forEach(([name, abbreviation]) => {
+        const isWestVirginia = name === "virginia" && lowerText.includes("west virginia");
+
+        if (new RegExp(`\\b${name}\\b`).test(lowerText) && !isWestVirginia) {
+            conditions.push({ field: "state", operator: "=", value: abbreviation });
+        }
+    });
+
+    getUniqueValues("state").forEach((abbreviation) => {
+        const alreadyAdded = conditions.some((condition) => condition.field === "state");
+
+        if (new RegExp(`\\b${abbreviation}\\b`).test(text) && !alreadyAdded) {
+            conditions.push({ field: "state", operator: "=", value: abbreviation });
+        }
+    });
+
+    if (/\bcoal\b/.test(lowerText)) {
+        conditions.push({ field: "fuel", operator: "=", value: "Coal" });
+    } else if (/\b(natural )?gas\b/.test(lowerText)) {
+        conditions.push({ field: "fuel", operator: "=", value: "Natural gas" });
+    }
+
+    const yearMatch = lowerText.match(/\b(19|20)\d{2}\b/);
+    if (yearMatch) {
+        conditions.push({ field: "year", operator: "=", value: yearMatch[0] });
+    }
+
+    const mentionsSo2Only = /so2/.test(lowerText) && !/co2/.test(lowerText);
+    const amountMatch = lowerText.match(
+        /(co2|so2)?\D{0,12}?(over|above|greater than|more than|under|below|less than)\s*([\d,]+)/
+    );
+
+    if (amountMatch) {
+        conditions.push({
+            field: amountMatch[1] || (mentionsSo2Only ? "so2" : "co2"),
+            operator: /over|above|greater|more/.test(amountMatch[2]) ? ">" : "<",
+            value: amountMatch[3].replaceAll(",", "")
+        });
+    } else if (/\bhigh\b/.test(lowerText)) {
+        conditions.push(
+            mentionsSo2Only
+                ? { field: "so2", operator: ">", value: "1000" }
+                : { field: "co2", operator: ">", value: "500000" }
+        );
+    } else if (/\blow\b/.test(lowerText)) {
+        conditions.push(
+            mentionsSo2Only
+                ? { field: "so2", operator: "<", value: "300" }
+                : { field: "co2", operator: "<", value: "150000" }
+        );
+    }
+
+    return conditions;
+}
+
+document.getElementById("descForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const conditions = interpretDescription(document.getElementById("dText").value);
+    const interpretation = document.getElementById("interp");
+
+    interpretation.hidden = false;
+
+    if (!conditions.length) {
+        interpretation.innerHTML =
+            `<span class="err">No search terms found. Try naming a state, fuel, year or emission level.</span>`;
+        return;
+    }
+
+    interpretation.innerHTML =
+        `<span class="muted">Searching for:</span>` +
+        conditions
+            .map((condition) => {
+                const value = numericFields.includes(condition.field)
+                    ? Number(condition.value).toLocaleString()
+                    : condition.value;
+                return `<span class="chip">${fieldLabels[condition.field]} ${condition.operator} ${value}</span>`;
+            })
+            .join("");
+
+    runSearch(conditions);
+});
+
+/* ---------- upload and import ---------- */
+
+const requiredColumns = ["facility", "facilityid", "state", "unit", "fuel", "year", "co2", "so2"];
+const dataFileInput = document.getElementById("dataFileInput");
+const dropZone = document.getElementById("dropZone");
+const importButton = document.getElementById("importButton");
+const uploadReport = document.getElementById("uploadReport");
+let validRows = [];
+
+function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let cell = "";
+    let insideQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const character = text[i];
+
+        if (insideQuotes) {
+            if (character === '"' && text[i + 1] === '"') {
+                cell += '"';
+                i++;
+            } else if (character === '"') {
+                insideQuotes = false;
+            } else {
+                cell += character;
+            }
+        } else if (character === '"') {
+            insideQuotes = true;
+        } else if (character === ",") {
+            row.push(cell);
+            cell = "";
+        } else if (character === "\n" || character === "\r") {
+            if (character === "\r" && text[i + 1] === "\n") {
+                i++;
+            }
+            row.push(cell);
+            cell = "";
+            if (row.some((value) => value.trim())) {
+                rows.push(row);
+            }
+            row = [];
+        } else {
+            cell += character;
+        }
+    }
+
+    row.push(cell);
+    if (row.some((value) => value.trim())) {
+        rows.push(row);
+    }
+
+    return rows;
+}
+
+function validateRow(record) {
+    const problems = [];
+
+    requiredColumns.forEach((column) => {
+        if (!record[column]) {
+            problems.push(`${column} is empty`);
+        }
+    });
+
+    if (record.state && !/^[A-Za-z]{2}$/.test(record.state)) {
+        problems.push("state must be 2 letters");
+    }
+
+    if (record.year && !(Number.isInteger(Number(record.year)) && record.year >= 1990 && record.year <= 2100)) {
+        problems.push("year must be 1990-2100");
+    }
+
+    ["co2", "so2"].forEach((column) => {
+        if (record[column] && !(Number(record[column].replaceAll(",", "")) >= 0)) {
+            problems.push(`${column} must be a number of 0 or more`);
+        }
+    });
+
+    return problems;
+}
+
+function handleUploadedFile(file) {
+    validRows = [];
+    importButton.disabled = true;
+    uploadReport.hidden = false;
+
+    if (!file || !/\.csv$/i.test(file.name)) {
+        uploadReport.innerHTML =
+            `<p class="err">Choose a .csv file. Excel files should be saved as CSV first.</p>`;
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.addEventListener("load", () => {
+        const [headerRow, ...bodyRows] = parseCsv(String(reader.result));
+        const keys = (headerRow || []).map((header) => header.toLowerCase().replace(/[\s_]/g, ""));
+        const missingColumns = requiredColumns.filter((column) => !keys.includes(column));
+
+        if (missingColumns.length) {
+            uploadReport.innerHTML =
+                `<p class="err">Missing columns: ${escapeHtml(missingColumns.join(", "))}. Download the template to see the expected headers.</p>`;
+            return;
+        }
+
+        const errors = [];
+
+        bodyRows.forEach((cells, index) => {
+            const record = {};
+            keys.forEach((key, position) => {
+                record[key] = (cells[position] || "").trim();
+            });
+
+            const problems = validateRow(record);
+
+            if (problems.length) {
+                errors.push(`Row ${index + 2}: ${problems.join("; ")}`);
+                return;
+            }
+
+            validRows.push({
+                facility: record.facility,
+                id: record.facilityid,
+                state: record.state.toUpperCase(),
+                unit: record.unit,
+                fuel: record.fuel,
+                year: Number(record.year),
+                co2: Math.round(Number(record.co2.replaceAll(",", ""))),
+                so2: Math.round(Number(record.so2.replaceAll(",", "")))
+            });
+        });
+
+        const shownErrors = errors.slice(0, 8).map((error) => `<li class="err">${escapeHtml(error)}</li>`);
+
+        uploadReport.innerHTML = `
+            <p><strong class="ok">${validRows.length} valid</strong> and
+            <strong class="${errors.length ? "err" : ""}">${errors.length} invalid</strong> rows.</p>
+            ${errors.length ? `<ul>${shownErrors.join("")}</ul>` : ""}
+            ${errors.length > 8 ? `<p class="muted">${errors.length - 8} more not shown.</p>` : ""}`;
+
+        importButton.disabled = validRows.length === 0;
+    });
+
+    reader.readAsText(file);
+}
+
+dropZone.addEventListener("click", () => dataFileInput.click());
+
+dropZone.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        dataFileInput.click();
+    }
+});
+
+dataFileInput.addEventListener("change", () => handleUploadedFile(dataFileInput.files[0]));
+
+["dragover", "dragenter"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropZone.classList.add("over");
+    });
+});
+
+["dragleave", "drop"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropZone.classList.remove("over");
+    });
+});
+
+dropZone.addEventListener("drop", (event) => handleUploadedFile(event.dataTransfer.files[0]));
+
+document.getElementById("templateButton").addEventListener("click", () => {
+    downloadCsv(
+        "epa-upload-template.csv",
+        "facility,facility_id,state,unit,fuel,year,co2,so2\nGhent Generating Station,1356,KY,GHT-1,Coal,2025,184420,612"
+    );
+});
+
+importButton.addEventListener("click", () => {
+    // API: POST validRows to the Flask upload route so SQLAlchemy can insert them.
+    facilityData.push(...validRows);
+    importedOn = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+    });
+
+    showMessage(`Imported ${validRows.length} records.`);
+    validRows = [];
+    importButton.disabled = true;
+    uploadReport.hidden = true;
+    dataFileInput.value = "";
+    searchResults = null;
+
+    fillFilters();
+    renderDashboard();
+});
+
+/* ---------- EPA data service ---------- */
+
+const epaForm = document.getElementById("epaForm");
+const epaLog = document.getElementById("epaLog");
+
+function fillEpaForm() {
+    const years = [2025, 2024, 2023, 2022, 2021, 2020];
+
+    fillSelect(document.getElementById("eState"), ["KY", "TN", "OH", "IN", "WV", "IL"], false);
+    fillSelect(document.getElementById("eFrom"), [...years].reverse(), false);
+    fillSelect(document.getElementById("eTo"), years, false);
+}
+
+epaForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const state = document.getElementById("eState").value;
+    const fromYear = Number(document.getElementById("eFrom").value);
+    const toYear = Number(document.getElementById("eTo").value);
+
+    if (fromYear > toYear) {
+        showMessage("From year must not be later than To year.");
+        return;
+    }
+
+    // API: call the back-end route that requests EPA CAMPD data and saves it, for example:
+    // fetch(`/api/epa/fetch?state=${state}&from=${fromYear}&to=${toYear}`, { method: "POST" });
+    if (epaLog.firstElementChild && epaLog.firstElementChild.classList.contains("muted")) {
+        epaLog.innerHTML = "";
+    }
+
+    epaLog.insertAdjacentHTML(
+        "afterbegin",
+        `<li>${new Date().toLocaleTimeString()}: requested ${state}, ${fromYear}-${toYear}
+        <span class="muted">(demo mode: connect the back-end route to import real records)</span></li>`
+    );
+});
+
+/* ---------- start ---------- */
+
+fillFilters();
+fillEpaForm();
+addConditionRow();
+renderDashboard();
