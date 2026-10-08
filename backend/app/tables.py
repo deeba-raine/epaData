@@ -1,6 +1,6 @@
 # Import Dependencies
 from datetime import datetime, timezone
-from app import db
+from . import db
 
 # 4 Required Tables from Assignment Description
 class Dataset(db.Model):

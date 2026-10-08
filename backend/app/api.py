@@ -1,8 +1,8 @@
 # Import Dependencies
 from flask import Blueprint, jsonify, request
-import app.dbManagement as manage
-import app.services as serv
-import app.camApi as cam
+from . import dbManagement as manage
+from . import services as serv
+from . import camApi as cam
 import pandas as pd
 import time
 import uuid

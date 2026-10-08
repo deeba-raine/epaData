@@ -4,9 +4,19 @@ import warnings
 import time
 import os
 
-# CAM Api Set Up - Uses Device Environment to Find Api Key-
-api = os.environ['EPA_KEY']
+# CAM API setup. The key is required only when an EPA request is made so the
+# application can still start for local health checks and development.
+api = os.getenv('EPA_KEY')
 url = 'https://api.epa.gov/easey'
+
+
+def _api_key() -> str:
+    if not api:
+        raise RuntimeError(
+            "EPA_KEY is not set. Set the EPA_KEY environment variable before "
+            "using EPA data endpoints."
+        )
+    return api
 
 # Retrival Functions
 def requestAgain(retr: str, header: dict):
@@ -32,7 +42,7 @@ def requestAgain(retr: str, header: dict):
 
 def retrFacility(args: dict):
     # Build Parameters and Create a Request
-    header = {'perPage': 1, 'api_key': api}
+    header = {'perPage': 1, 'api_key': _api_key()}
 
     # Change perPage if Included in args
     if 'perPage' in args:
@@ -61,7 +71,7 @@ def retrEmission(args: dict):
     # Preserve Arguments In-Case of Retry
     arguments = args.copy()
 
-    arguments['api_key'] = api
+    arguments['api_key'] = _api_key()
     # Use arguments to Build URL
     retr = f'{url}/emissions-mgmt/emissions/apportioned/'
     if 'period' not in arguments:

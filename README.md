@@ -25,3 +25,20 @@ epaData is a Flask-based web application for managing and exploring environmenta
 * EPA CAMPD
 * EPA TRACI
 * Other EPA environmental datasets
+
+### Running the backend
+
+From the repository root, start the application with:
+
+```powershell
+.\.venv\Scripts\python.exe backend\run.py
+```
+
+The server can start without an EPA key, but EPA data operations require the
+`EPA_KEY` environment variable. Set it in the terminal before starting the
+server:
+
+```powershell
+$env:EPA_KEY = "your-key"
+.\.venv\Scripts\python.exe backend\run.py
+```

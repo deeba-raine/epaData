@@ -1,9 +1,9 @@
 # Import Depenedencies
 from datetime import datetime, timezone
-import app.tables as table
-import app.camApi as cam
+from . import tables as table
+from . import camApi as cam
 import pandas as pd
-from app import db
+from . import db
 import json
 
 def sessionFin():
