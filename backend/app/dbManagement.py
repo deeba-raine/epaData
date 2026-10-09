@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from . import tables as table
 from . import camApi as cam
+from sqlalchemy import func
 import pandas as pd
 from . import db
 import json
@@ -150,6 +151,12 @@ def createRecord(info: tuple) -> bool:
             return False
         unit = searchUnit(getattr(info, '_3'), getattr(info, '_4'))
 
+    # Ensure Record Doesn't Already Exist
+    rec = db.session.get(table.AnnualRecord, (facility.id, unit.key, getattr(info, 'Year')))
+    if rec is not None:
+        # Record Exists, Return False
+        return False
+
     # Create Annual Record Item
     item = table.AnnualRecord(
         facilityID = facility.id,
@@ -171,3 +178,181 @@ def createRecord(info: tuple) -> bool:
     db.session.add(item)
     db.session.flush()
     return True
+
+# Grab all of A Table
+def getAll(model=table.AnnualRecord):
+    query = db.select(model)
+    return db.session.execute(query).scalars().all()
+
+def search(filters: dict | None=None):
+    filters = filters or {}
+    # Searchable Table Fields Dictionary for Formatting Clarity and Joining Purposes
+    fields = {"facility_id": table.Facility.id, "facility_name": table.Facility.name, "state": table.Facility.state,
+              "county": table.Facility.county, "latitude": table.Facility.latitude, "key": table.Unit.key,
+              "longitude": table.Facility.longitude, "category": table.Facility.category, "unit_id": table.Unit.id,
+              "type": table.Unit.type, "primary_fuel": table.Unit.primaryFuel, "secondary_fuel": table.Unit.secondaryFuel,
+              "operating_date": table.Unit.operatingDate, "retirement_date": table.Unit.retirementDate, "year": table.AnnualRecord.reportingYear,
+              "operating_time": table.AnnualRecord.operatingTime, "gross": table.AnnualRecord.grossLoad,
+              "steam_load": table.AnnualRecord.steamLoad, "heat_input": table.AnnualRecord.heatInput, "co2": table.AnnualRecord.massCo2,
+              "so2": table.AnnualRecord.massSo2, "nox": table.AnnualRecord.massNox, "so2_control": table.AnnualRecord.so2ControlInfo,
+              "nox_control": table.AnnualRecord.noxControlInfo, "pm": table.AnnualRecord.pmControlInfo, "program_code": table.AnnualRecord.programCode}
+    
+    # Join All Tables for Searching Purposes
+    query = db.select(*[c.label(n) for n, c in fields.items()]).select_from(table.AnnualRecord).join(table.Unit, table.AnnualRecord.unitId == table.Unit.key).join(table.Facility, table.AnnualRecord.facilityID == table.Facility.id)
+
+    # Process Filters into Usable Constrains
+    ### Filters needs Two Sections: {args: {field, operator, value}, format: {group, rank, n}}
+    constraints = [process(fields, f) for f in filters.get('args', [])]
+    if constraints:
+        query = query.where(*constraints)
+
+    # Format Query Accordingly
+    query = form(fields, query, filters.get('format', {}))
+
+    # Return Query
+    return db.session.execute(query).mappings().all()
+
+# Process Filter Arguments; Seperate Function For Readability
+def process(fields, args: dict):
+    field = args.get("field")
+    op = args.get("op", args.get("operator"))
+    val = args.get("value")
+
+    arg = fields[field]
+    base = None
+    # Switch Operator to Return Correct Query
+    match(op):
+        # Comparison Operands
+        case('='):
+            base = arg == val
+        case('!=' | '≠'):
+            base = arg != val
+        case('>'):
+            base = arg > val
+        case('>=' | '≥'):
+            base = arg >= val
+        case('<'):
+            base = arg < val
+        case('<=' | '≤'):
+            base = arg <= val
+
+        # Text Operands
+        case('contains'):
+            base = arg.ilike(f"%{val}%")
+        case('ends_with'):
+            base = arg.ilike(f"%{val}")
+        case('starts_with'):
+            base = arg.ilike(f"{val}%")
+        case('in'):
+            base = arg.in_(val)
+        case('not_in'):
+            base = arg.not_in(val)
+        case _:
+            raise ValueError(f"Not Supported Operator: {op}")
+    return base
+
+# Reorginize or Group Data Before Limiter; Different Function for Readability
+def form(fields, query, args):
+    rank = args.get("rank", None)
+    n = args.get("n", None)
+    group = args.get("group", None)
+    rankN = None
+    if rank:
+        rankN = rank.get("n", None)
+
+    # Groupby Implementation
+    ### group format: {group: {by: [], aggregate: [function, metric]}}
+    if group:
+        # Check rank.n-if exists DO NOT collapse-
+        if rankN is None:
+            # Group By Given Metrics First
+            arg = group.get("by", None)
+            if arg is None:
+                raise ValueError("You Must Group By Something to use Group")
+
+            arg = [arg] if isinstance(arg, str) else arg
+            columns = [fields[field] for field in arg]
+
+            aggs = group.get("aggregate", None)
+            if aggs is not None:
+                build = list(columns)
+                for agg, metric in aggs:
+                    # Adjust Metric in Given Manner
+                    name = metric
+                    metric = fields[metric]
+                    build.append(aggregate(agg, metric).label(f"{agg}_{name}"))
+                # Create Final Query Using Build
+                query = query.with_only_columns(*build)
+            # Group After Aggregations
+            query = query.group_by(*columns)
+
+    # Top/Bottom Order if Told To
+    ### rank formatting {direction: "Top/Bottom", metric: "", n: int > 0}
+    if rank:
+        arg = fields[rank.get("metric", None)]
+        if arg is None:
+            raise ValueError("You Need a Metric To Order By")
+
+        # Implementing This was My Life's Biggest Mistake
+        columns = None
+        if rankN:
+            arg2 = group.get("by", None)
+            if arg2 is None:
+                raise ValueError("You Must Group By Something to use Group")
+
+            arg2 = [arg2] if isinstance(arg2, str) else arg2
+            columns = [fields[field] for field in arg2]
+        def subQuery(q, column, value, d=''):
+            if d == 'bottom':
+                sub = q.add_columns(
+                    func.row_number().over(
+                        partition_by=column,
+                        order_by=value.asc()
+                    ).label("rn")
+                ).subquery()
+                return sub
+            else:
+                sub = q.add_columns(
+                    func.row_number().over(
+                        partition_by=column,
+                        order_by=value.desc()
+                    ).label("rn")
+                ).subquery()
+                return sub
+        
+        direction = rank.get("direction", None)
+        if direction and direction == 'top':
+            if rankN is None:
+                query = query.order_by(arg.desc())
+            else:
+                s = subQuery(query, columns, arg, direction)
+                query = db.select(*[s.c[col] for col in s.c.keys() if col != "rn"]).where(s.c.rn <= rankN)
+        elif direction and direction == 'bottom':
+            if rankN is None:
+                query = query.order_by(arg.asc())
+            else:
+                s = subQuery(query, columns, arg, direction)
+                query = db.select(*[s.c[col] for col in s.c.keys() if col != "rn"]).where(s.c.rn <= rankN)
+        else:
+            raise ValueError("Direction Must be Top or Bottom")
+    # Limit Total by N
+    if n is not None:
+        if n >= 0:
+            query = query.limit(n)
+        else:
+            raise ValueError("n Must Be At Least 0")
+    return query
+
+def aggregate(agg: str, metric):
+    match(agg):
+        case('sum'):
+            return func.sum(metric)
+        case('max'):
+            return func.max(metric)
+        case('min'):
+            return func.min(metric)
+        case('avg'):
+            return func.avg(metric)
+        case('cnt'):
+            return func.count(metric)
+    raise LookupError("Improper Aggregate")
