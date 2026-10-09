@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request
 from . import dbManagement as manage
 from . import services as serv
+from . import tables as table
 from . import camApi as cam
 import pandas as pd
 import time
@@ -129,4 +130,10 @@ def upRespond():
                   accepted, stored['notes']]
     # Push To Database and Return *Dataset Push Commits Chenges*
     manage.createDataset(attributes)
-    return jsonify({"message": "Changes Pushed"})
+    x = manage.getAll(table.Facility)
+    print([fac.state for fac in x])
+    return jsonify({"message": "Changes Pushed", "rows": accepted})
+
+@api.get("/facilities")
+def getAllFacilities():
+    facilities = manage.getAll(table.Facility)
