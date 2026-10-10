@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request
 from . import dbManagement as manage
 from . import services as serv
+from . import tables as table
 from . import camApi as cam
 import pandas as pd
 import time
@@ -129,4 +130,17 @@ def upRespond():
                   accepted, stored['notes']]
     # Push To Database and Return *Dataset Push Commits Chenges*
     manage.createDataset(attributes)
-    return jsonify({"message": "Changes Pushed"})
+    return jsonify({"message": "Changes Pushed", "rows": accepted})
+
+@api.get("/facilityVisualize")
+def getFacilityData():
+    visualizedData = ["facility_name", "facility_id", "state", "unit_id", "primary_fuel", "co2", "so2", "year"]
+    facilities = manage.search()
+    relevant = [facility[x] for facility in facilities for x in visualizedData]
+    # Group Relevant into Eights
+    i = 0
+    ret = []
+    while i < len(relevant):
+        ret.append(relevant[i:i+8])
+        i += 8
+    return jsonify({"items": ret})

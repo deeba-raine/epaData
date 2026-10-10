@@ -1,6 +1,7 @@
 # Import Dependencies
 import requests
 import warnings
+import queue
 import time
 import os
 
@@ -8,6 +9,9 @@ import os
 # application can still start for local health checks and development.
 api = os.getenv('EPA_KEY')
 url = 'https://api.epa.gov/easey'
+session = requests.Session()
+cache = {}
+names = queue.Queue(5)
 
 
 def _api_key() -> str:
@@ -41,6 +45,11 @@ def requestAgain(retr: str, header: dict):
             raise ValueError(f"Unknown Error, Status: {response.status_code}")
 
 def retrFacility(args: dict):
+    # Store Cache to Prevent Repeated API Calls
+    key = tuple(sorted(args.items()))
+    if key in cache:
+        return cache[key]
+
     # Build Parameters and Create a Request
     header = {'perPage': 1, 'api_key': _api_key()}
 
@@ -54,6 +63,12 @@ def retrFacility(args: dict):
     response = requests.get(retr, params=header)
     match(response.status_code):
         case 200:
+            # Cache Response
+            cache[key] = response
+            # Max Cache of 5
+            if len(cache.items()) > 5:
+                del(cache[names.get()])
+            names.put(key)
             return response
         case 400:
             raise ValueError("Invalid Request")
