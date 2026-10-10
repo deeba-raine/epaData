@@ -13,6 +13,7 @@
         <nav id="sideNav">
             <button type="button" data-view="dashboard" class="active">Dashboard</button>
             <button type="button" data-view="search">Search facilities</button>
+            <button type="button" data-view="dbsearch">Search database</button>
             <button type="button" data-view="upload">Upload data</button>
             <button type="button" data-view="epa">EPA data service</button>
         </nav>
@@ -161,19 +162,66 @@
                 </section>
             </section>
 
+            <!-- DATABASE SEARCH -->
+            <section class="view" id="view-dbsearch" hidden>
+                <header><h2>Search database</h2></header>
+                <section class="panel">
+                    <form id="dbSearchForm" class="tab-pane">
+                        <label class="grow">Search the database
+                            <input type="search" id="dbQuery" placeholder="Search facilities, units, datasets...">
+                        </label>
+                        <button class="primary-button" type="submit">Search</button>
+                        <button class="secondary-button" type="reset" id="dbReset">Clear</button>
+                    </form>
+                </section>
+
+                <section class="panel">
+                    <div class="table-heading">
+                        <h4>Results <span class="muted" id="dbResCount"></span></h4>
+                    </div>
+                    <div class="table-wrap">
+                        <table id="dbResultsTable">
+                            <thead><tr></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <p class="muted" id="dbEmpty">Run a search to see results.</p>
+                </section>
+            </section>
+
             <!-- UPLOAD -->
             <section class="view" id="view-upload" hidden>
                 <header><h2>Upload data</h2></header>
                 <section class="panel">
                     <p class="muted">Upload a CSV with the columns below. Valid rows are imported; invalid rows are listed so you can fix them.</p>
                     <code class="cols">facility, facility_id, state, unit, fuel, year, co2, so2</code>
+
+                    <div class="dataset-meta">
+                        <label>Dataset name
+                            <input type="text" id="datasetName" name="datasetName" maxlength="100" placeholder="e.g. KY annual emissions 2024" required>
+                        </label>
+                        <label>Notes
+                            <textarea id="datasetNotes" name="datasetNotes" rows="3" maxlength="500" placeholder="Optional notes about this dataset"></textarea>
+                        </label>
+                    </div>
+
                     <input type="file" id="dataFileInput" accept=".csv,text/csv" hidden>
                     <div id="dropZone" class="drop" tabindex="0" role="button">
                         <strong>Drop a CSV here</strong> or choose a file
                     </div>
                     <div class="row-actions">
+                        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
+                            <button type="button" class="primary-button" id="importButton" disabled>
+                                Import valid rows
+                            </button>
+                            <label style="font-size: 0.6rem; color: #666; display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="pushQuestion">
+                                Push Questionable Rows?
+                            </label>
+                        </div>
+
+                        <button type="button" class="secondary-button" id="cancelButton" disabled>Cancel</button>
                         <button type="button" class="secondary-button" id="templateButton">Download template</button>
-                        <button type="button" class="primary-button" id="importButton" disabled>Import valid rows</button>
                     </div>
                     <div id="uploadReport" hidden></div>
                 </section>
