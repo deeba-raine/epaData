@@ -1,57 +1,80 @@
-// Replace this generated sample data with the database/API response when it is available.
-// API: facility rows should come from the Flask route that queries SQLite through SQLAlchemy.
-const facilityList = [
-    { name: "Ghent Generating Station", state: "KY", id: "1356", fuel: "Coal" },
-    { name: "Trimble County Plant", state: "KY", id: "6071", fuel: "Coal" },
-    { name: "Mill Creek Station", state: "KY", id: "1364", fuel: "Coal" },
-    { name: "Paradise Fossil Plant", state: "KY", id: "1378", fuel: "Coal" },
-    { name: "Cane Run Station", state: "KY", id: "1363", fuel: "Natural gas" },
-    { name: "Gibson Generating Station", state: "IN", id: "6113", fuel: "Coal" },
-    { name: "Sullivan Plant", state: "IN", id: "1010", fuel: "Natural gas" },
-    { name: "Cumberland Fossil Plant", state: "TN", id: "3399", fuel: "Coal" },
-    { name: "Kyger Creek Station", state: "OH", id: "2876", fuel: "Coal" },
-    { name: "Mountaineer Plant", state: "WV", id: "6264", fuel: "Coal" }
-];
+const api_url = "http://127.0.0.1:5000";
 
-function buildSampleData() {
-    let seed = 42;
-    const random = () => {
-        seed = (seed * 9301 + 49297) % 233280;
-        return seed / 233280;
-    };
+// API: facility row fetch
+async function getFacilityRows() {
+    // Retrieve Facility Data for Visualization
+    const response = await fetch(`${api_url}/api/facilityVisualize`, {method: "GET"});
+    const data = await response.json();
+
+    //Push Each Row to Rows
     const rows = [];
-
-    facilityList.forEach((facility) => {
-        for (let unitNumber = 1; unitNumber <= 2; unitNumber++) {
-            const isCoal = facility.fuel === "Coal";
-            const baseCo2 = isCoal ? 350000 + random() * 600000 : 80000 + random() * 170000;
-
-            for (let year = 2021; year <= 2025; year++) {
-                const change = 1 - (year - 2021) * 0.04 + (random() - 0.5) * 0.08;
-                const baseSo2 = isCoal ? 400 + random() * 1100 : 5 + random() * 25;
-
-                rows.push({
-                    facility: facility.name,
-                    id: facility.id,
-                    state: facility.state,
-                    unit: `${facility.name.slice(0, 3).toUpperCase()}-${unitNumber}`,
-                    fuel: facility.fuel,
-                    year: year,
-                    co2: Math.round(baseCo2 * change),
-                    so2: Math.round(baseSo2 * change)
-                });
-            }
-        }
-    });
-
+    for (const row of data.items) {
+        rows.push({
+            facility: row[0],
+            id: row[1],
+            state: row[2],
+            unit: row[3],
+            fuel: row[4],
+            year: row[7],
+            co2: row[5],
+            so2: row[6]
+        });
+    }
+    // Return Rows
     return rows;
 }
+// const facilityList = [
+//     { name: "Ghent Generating Station", state: "KY", id: "1356", fuel: "Coal" },
+//     { name: "Trimble County Plant", state: "KY", id: "6071", fuel: "Coal" },
+//     { name: "Mill Creek Station", state: "KY", id: "1364", fuel: "Coal" },
+//     { name: "Paradise Fossil Plant", state: "KY", id: "1378", fuel: "Coal" },
+//     { name: "Cane Run Station", state: "KY", id: "1363", fuel: "Natural gas" },
+//     { name: "Gibson Generating Station", state: "IN", id: "6113", fuel: "Coal" },
+//     { name: "Sullivan Plant", state: "IN", id: "1010", fuel: "Natural gas" },
+//     { name: "Cumberland Fossil Plant", state: "TN", id: "3399", fuel: "Coal" },
+//     { name: "Kyger Creek Station", state: "OH", id: "2876", fuel: "Coal" },
+//     { name: "Mountaineer Plant", state: "WV", id: "6264", fuel: "Coal" }
+// ];
 
-let facilityData = buildSampleData();
+// function buildSampleData() {
+//     let seed = 42;
+//     const random = () => {
+//         seed = (seed * 9301 + 49297) % 233280;
+//         return seed / 233280;
+//     };
+//     const rows = [];
+
+//     facilityList.forEach((facility) => {
+//         for (let unitNumber = 1; unitNumber <= 2; unitNumber++) {
+//             const isCoal = facility.fuel === "Coal";
+//             const baseCo2 = isCoal ? 350000 + random() * 600000 : 80000 + random() * 170000;
+
+//             for (let year = 2021; year <= 2025; year++) {
+//                 const change = 1 - (year - 2021) * 0.04 + (random() - 0.5) * 0.08;
+//                 const baseSo2 = isCoal ? 400 + random() * 1100 : 5 + random() * 25;
+
+//                 rows.push({
+//                     facility: facility.name,
+//                     id: facility.id,
+//                     state: facility.state,
+//                     unit: `${facility.name.slice(0, 3).toUpperCase()}-${unitNumber}`,
+//                     fuel: facility.fuel,
+//                     year: year,
+//                     co2: Math.round(baseCo2 * change),
+//                     so2: Math.round(baseSo2 * change)
+//                 });
+//             }
+//         }
+//     });
+
+//     return rows;
+// }
+
+let facilityData = [];
 let importedOn = "Sep 14, 2026";
 
 const csvColumns = ["facility", "id", "state", "unit", "fuel", "year", "co2", "so2"];
-const numericFields = ["year", "co2", "so2"];
+const numericFields = ["id", "year", "co2", "so2"];
 
 /* ---------- helpers ---------- */
 
@@ -686,148 +709,115 @@ document.getElementById("descForm").addEventListener("submit", (event) => {
 
 /* ---------- upload and import ---------- */
 
-const requiredColumns = ["facility", "facilityid", "state", "unit", "fuel", "year", "co2", "so2"];
 const dataFileInput = document.getElementById("dataFileInput");
 const dropZone = document.getElementById("dropZone");
 const importButton = document.getElementById("importButton");
 const uploadReport = document.getElementById("uploadReport");
-let validRows = [];
+const cancelReport = document.getElementById("cancelButton");
+let testCount = 0;
+let uploadId = null;
 
-function parseCsv(text) {
-    const rows = [];
-    let row = [];
-    let cell = "";
-    let insideQuotes = false;
-
-    for (let i = 0; i < text.length; i++) {
-        const character = text[i];
-
-        if (insideQuotes) {
-            if (character === '"' && text[i + 1] === '"') {
-                cell += '"';
-                i++;
-            } else if (character === '"') {
-                insideQuotes = false;
-            } else {
-                cell += character;
-            }
-        } else if (character === '"') {
-            insideQuotes = true;
-        } else if (character === ",") {
-            row.push(cell);
-            cell = "";
-        } else if (character === "\n" || character === "\r") {
-            if (character === "\r" && text[i + 1] === "\n") {
-                i++;
-            }
-            row.push(cell);
-            cell = "";
-            if (row.some((value) => value.trim())) {
-                rows.push(row);
-            }
-            row = [];
-        } else {
-            cell += character;
-        }
+async function firstPass(file) {
+    const payload = new FormData();
+    payload.append('file', file);
+    // Replace These with Upload Page Inputs
+    payload.append('notes', 'This is a test');
+    payload.append('name', 'testRun' + testCount);
+    testCount += 1;
+    
+    let result = null;
+    try {
+        const response = await fetch(`${api_url}/api/upload`, {method: 'POST', body: payload});
+        result = await response.json();
+    } catch (error) {
+        console.error('Problem During Upload', error);
+        throw error;
     }
-
-    row.push(cell);
-    if (row.some((value) => value.trim())) {
-        rows.push(row);
-    }
-
-    return rows;
+    return result;
 }
 
-function validateRow(record) {
-    const problems = [];
-
-    requiredColumns.forEach((column) => {
-        if (!record[column]) {
-            problems.push(`${column} is empty`);
-        }
-    });
-
-    if (record.state && !/^[A-Za-z]{2}$/.test(record.state)) {
-        problems.push("state must be 2 letters");
+async function secondPass(payload) {
+    // Append Relevant Information
+    payload.append("uploadID", uploadId);
+    if (document.getElementById("pushQuestion").checked) {
+        payload.append("question", 1)
     }
 
-    if (record.year && !(Number.isInteger(Number(record.year)) && record.year >= 1990 && record.year <= 2100)) {
-        problems.push("year must be 1990-2100");
+    // Fetch Second Pass with Payload
+    let result = null;
+    try {
+        const response = await fetch(`${api_url}/api/finishUpload`, {method: 'POST', body: payload});
+        result = await response.json();
+    } catch (error) {
+        console.error('Problem During Upload', error);
+        throw error;
     }
-
-    ["co2", "so2"].forEach((column) => {
-        if (record[column] && !(Number(record[column].replaceAll(",", "")) >= 0)) {
-            problems.push(`${column} must be a number of 0 or more`);
-        }
-    });
-
-    return problems;
+    return result;
 }
 
-function handleUploadedFile(file) {
-    validRows = [];
+async function handleUploadedFile(file) {
+    // validRows = [];
+    uploadReport.style.cssText = '';
     importButton.disabled = true;
+    cancelReport.disabled = true;
     uploadReport.hidden = false;
 
-    if (!file || !/\.csv$/i.test(file.name)) {
-        uploadReport.innerHTML =
-            `<p class="err">Choose a .csv file. Excel files should be saved as CSV first.</p>`;
+    // Check File Size
+    const maxData = 50 * 1024 * 1024;
+    if (file.size > maxData) {
+        uploadReport.innerHTML = '<p class="err">File Size is too Large.</p>';
         return;
     }
 
-    const reader = new FileReader();
+    // Attempt First Upload Pass
+    const parsed = await firstPass(file);
+    // Make Upload Report Visible
+    uploadReport.hidden = false
+    if ("error" in parsed) {
+        // Switch Error Possibilities and Return Them In <p>
+        uploadReport.innerHTML = `<p class="err">${parsed.error}</p>`;
+        return;
+    }
+    // First Pass Completed, Store Id
+    uploadId = parsed.uploadID;
 
-    reader.addEventListener("load", () => {
-        const [headerRow, ...bodyRows] = parseCsv(String(reader.result));
-        const keys = (headerRow || []).map((header) => header.toLowerCase().replace(/[\s_]/g, ""));
-        const missingColumns = requiredColumns.filter((column) => !keys.includes(column));
+    // Display Data Quality Report
+    let report = '';
+    const duplicates = parsed.Indexes;
+    const valid = parsed.Valid.items;
+    const invalid = parsed.Invalid.items;
+    const warning = parsed.Warning.items;
 
-        if (missingColumns.length) {
-            uploadReport.innerHTML =
-                `<p class="err">Missing columns: ${escapeHtml(missingColumns.join(", "))}. Download the template to see the expected headers.</p>`;
-            return;
+    report += `${valid.length} Items Had No Issues\n`;
+    
+    // Function for Report Creation
+    function firstFound(arr, n) {
+        let res = '';
+        items = arr.slice(0, n);
+        for (i=0; i < items.length; i++) {
+            res += `${items[i]}\n`;
         }
+        return res;
+    }
 
-        const errors = [];
+    // Skip if Length is not > 0
+    if (duplicates.length > 0) {
+        report += `Rows: ${duplicates.slice(0, 3)} Were Duplicates Including ${Math.max(0, duplicates.length-3)} Others\n`;
+    }
+    if (warning.length > 0) {
+        report += `There were ${warning.length} Rows with Missing Useful Data Including:\n`;
+        report += `${firstFound(warning, 5)}`;
+    }
+    if (invalid.length > 0) {
+        report += `There were ${invalid.length} Unnacceptable Rows; of Which 3 Were:\n${firstFound(invalid, 3)}`;
+    }
 
-        bodyRows.forEach((cells, index) => {
-            const record = {};
-            keys.forEach((key, position) => {
-                record[key] = (cells[position] || "").trim();
-            });
-
-            const problems = validateRow(record);
-
-            if (problems.length) {
-                errors.push(`Row ${index + 2}: ${problems.join("; ")}`);
-                return;
-            }
-
-            validRows.push({
-                facility: record.facility,
-                id: record.facilityid,
-                state: record.state.toUpperCase(),
-                unit: record.unit,
-                fuel: record.fuel,
-                year: Number(record.year),
-                co2: Math.round(Number(record.co2.replaceAll(",", ""))),
-                so2: Math.round(Number(record.so2.replaceAll(",", "")))
-            });
-        });
-
-        const shownErrors = errors.slice(0, 8).map((error) => `<li class="err">${escapeHtml(error)}</li>`);
-
-        uploadReport.innerHTML = `
-            <p><strong class="ok">${validRows.length} valid</strong> and
-            <strong class="${errors.length ? "err" : ""}">${errors.length} invalid</strong> rows.</p>
-            ${errors.length ? `<ul>${shownErrors.join("")}</ul>` : ""}
-            ${errors.length > 8 ? `<p class="muted">${errors.length - 8} more not shown.</p>` : ""}`;
-
-        importButton.disabled = validRows.length === 0;
-    });
-
-    reader.readAsText(file);
+    // Push report to Panel
+    uploadReport.innerHTML = `<pre class="ok">${report}</pre>`;
+    uploadReport.style.cssText = 'max-height: 300px; max-width: 100%; overflow: auto;';
+    importButton.disabled = false;
+    cancelReport.disabled = false;
+    return;
 }
 
 dropZone.addEventListener("click", () => dataFileInput.click());
@@ -864,26 +854,32 @@ document.getElementById("templateButton").addEventListener("click", () => {
     );
 });
 
-importButton.addEventListener("click", () => {
-    // API: POST validRows to the Flask upload route so SQLAlchemy can insert them.
-    facilityData.push(...validRows);
-    importedOn = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-    });
-
-    showMessage(`Imported ${validRows.length} records.`);
-    validRows = [];
+importButton.addEventListener("click", async () => {
     importButton.disabled = true;
-    uploadReport.hidden = true;
-    dataFileInput.value = "";
-    searchResults = null;
+    cancelReport.disabled = true;
+    showMessage(`Importing...`)
+    let data = new FormData();
+    data.append('push', 1);
+    const response = await secondPass(data);
+    showMessage(`Imported ${response.rows} records.`);
 
+    // Update Facility Data after Successful Push
+    facilityData = await getFacilityRows();
     fillFilters();
     renderDashboard();
+
+    uploadReport.style.cssText = '';
+    uploadReport.hidden = true;
 });
 
+cancelReport.addEventListener("click", async () => {
+    importButton.disabled = true;
+    cancelReport.disabled = true;
+    const response = await secondPass(new FormData())
+    uploadReport.innerHTML = `<p class="err">${response.message}</p>`;
+    uploadReport.style.cssText = '';
+    return;
+});
 /* ---------- EPA data service ---------- */
 
 const epaForm = document.getElementById("epaForm");
@@ -926,4 +922,8 @@ epaForm.addEventListener("submit", (event) => {
 fillFilters();
 fillEpaForm();
 addConditionRow();
-renderDashboard();
+getFacilityRows().then((rows) => {
+    facilityData = rows;
+    fillFilters();
+    renderDashboard();
+});
