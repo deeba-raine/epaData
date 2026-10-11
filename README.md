@@ -1,6 +1,6 @@
 # epaData
  
-epaData is a Flask web application that transforms raw EPA emissions data into actionable insights. It allows users to explore power-sector emissions trends, compare generating units, and visualize environmental performance over time by retrieving, importing, storing and searching U.S. Environmental Protection Agency (EPA) data at the facility, unit and year level.
+epaData is a flask based web application for exploring U.S. Environmental Protection Agency (EPA) power plant emissions data. Users can retrieve or upload the data, store it in a database, and search it by facility, unit, and year. The application also shows how emissions change over time.
  
 ## About the EPA and Power Plant Emissions
  
@@ -18,24 +18,24 @@ epaData sits at the end of this chain: it pulls CAMPD data (or CAMPD download fi
  
 
 ## Features
-
-* **EPA data service:** retrieve facility and emissions data from the EPA CAMPD web services
-* **Upload and import:** upload CSV or Excel (.xlsx) files, validate them, preview the results, and import only the records you approve
-* **Database:** facilities, units, annual records and import history stored in SQLite through SQLAlchemy
-* **Basic search:** facility name, facility ID, unit ID, state, year and fuel type
-* **Advanced search:** combine several conditions (for example State = KY AND CO2 > 500,000) using equality, range and text operators
-* **Description search:** type a sentence such as "Find coal units in Kentucky with high CO2 emissions" and a language model turns it into search conditions, which are shown before the search runs
-* **Results:** sortable columns, pagination, and CSV download of the filtered results
-* **Dashboard:** facility count, total CO2 and SO2, and an annual emissions trend chart
-
+ 
+* **Upload and import:** upload a CSV or Excel (.xlsx) file, check the validation report, and import only the records you approve. A template file can be downloaded from the upload page.
+* **Validation:** the file type and 25 expected columns are checked, duplicate rows are skipped, and each row is sorted into valid, warning, or invalid.
+* **Database:** facilities, units, annual records, and dataset history are stored in SQLite through SQLAlchemy.
+* **Basic search:** by facility name, facility ID, unit ID, state, year, or fuel.
+* **Advanced search:** combine several conditions, for example State = KY AND CO2 > 500,000, using `=`, `≠`, `>`, `≥`, `<`, `≤`, and `contains`.
+* **Description search:** type a sentence such as "Find coal units in Kentucky with high CO2 emissions". Simple keyword rules turn it into search conditions, which are shown before the search runs.
+* **Results:** sortable columns, pagination (10, 25, or 50 rows), and CSV download of the filtered results.
+* **Dashboard:** facility count, total CO2 and SO2, filters by state, facility, and year, an annual emissions trend chart, and a facility emissions table with CSV export.
 ## Technologies
-
+ 
 * Python 3 and Flask 3.1 (with Flask-CORS)
 * SQLite with Flask-SQLAlchemy 3.1
 * pandas and openpyxl for reading CSV and Excel files
-* requests for the EPA API (and the language model)
-* HTML, CSS and JavaScript front end, with Chart.js for charts
+* requests for the EPA API
+* HTML, CSS, and JavaScript front end, with Chart.js for the chart
 * pytest for tests
+
 
 ## Data Sources
 
@@ -63,103 +63,58 @@ epaData/
 ├── requirements.txt
 └── pyproject.toml
 ```
-
 ## Setup
-
-From the repository root, create a virtual environment and install the dependencies:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Running the backend
+## Run
 
-Start the server from the repository root:
+Backend (serves the API at `http://127.0.0.1:5000`):
 
 ```powershell
+$env:EPA_KEY = "your-key"   # needed only for EPA API calls
 .\.venv\Scripts\python.exe backend\run.py
 ```
 
-The API is served at `http://127.0.0.1:5000`.
-
-The server can start without an EPA key, but EPA data operations require the `EPA_KEY` environment variable. Set it in the terminal before starting the server:
-
-```powershell
-$env:EPA_KEY = "your-key"
-.\.venv\Scripts\python.exe backend\run.py
-```
-
-## Running the front end
-
-The front end is a static page that calls the API at `http://127.0.0.1:5000`. With the backend running, serve the `frontend` folder:
+Front end:
 
 ```powershell
 cd frontend
 ..\.venv\Scripts\python.exe -m http.server 8000
 ```
 
-Then open `http://localhost:8000` in a browser. Opening `index.html` directly also works.
-
-## Description search (language model)
-
-The "Describe it" search sends the sentence to `POST /api/describeSearch`, which asks a language model for search conditions. The model's answer is validated against a fixed list of fields and operators before it is used. If the model is unavailable, the page falls back to simple keyword rules.
-
-Cloud model (Anthropic):
-
-```powershell
-$env:ANTHROPIC_API_KEY = "your-key"
-# optional: $env:LLM_MODEL = "claude-sonnet-5-5"
-```
-
-Local model (Ollama):
-
-```powershell
-ollama pull llama3.1
-$env:LLM_PROVIDER = "local"
-$env:LOCAL_LLM_MODEL = "llama3.1"
-```
-
-LM Studio or another OpenAI-style server: also set `LOCAL_LLM_URL`, for example `http://localhost:1234/v1/chat/completions`.
+Open `http://localhost:8000`.
 
 ## Uploading data
 
-Upload a CSV or .xlsx file from the **Upload data** page. The header must match the 25 columns of the EPA annual emissions download, in this order:
+Upload a CSV or .xlsx file with the 25 EPA annual emissions columns. Rows are sorted during the preview:
 
-`State, Facility Name, Facility ID, Unit ID, Associated Stacks, Year, Operating Time Count, Sum of the Operating Time, Gross Load (MWh), Steam Load (1000 lb), SO2 Mass (short tons), SO2 Rate (lbs/mmBtu), CO2 Mass (short tons), CO2 Rate (short tons/mmBtu), NOx Mass (short tons), NOx Rate (lbs/mmBtu), Heat Input (mmBtu), Primary Fuel Type, Secondary Fuel Type, Unit Type, SO2 Controls, NOx Controls, PM Controls, Hg Controls, Program Code`
-
-Rows are sorted into three groups during the preview:
-
-| Group | Meaning | Imported |
+| Group | Rule | Imported |
 | --- | --- | --- |
-| Valid | All required and useful fields present | Yes, on confirmation |
-| Warning | Missing emissions, load, heat input or control information | Only if "Push Questionable Rows" is ticked |
+| Valid | All required fields present | On confirmation |
+| Warning | Missing emissions, load, heat input or control info | Only if "Push Questionable Rows" is ticked |
 | Invalid | Missing State, facility, unit, year, fuel, unit type or program code | Never |
 
-Duplicate rows (same facility, unit and year) are skipped.
+Duplicate rows (same facility, unit, year) are skipped.
 
 ## API routes
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | GET | `/api/health` | Health check |
-| POST | `/api/upload` | Validate an uploaded file and return a preview report |
-| POST | `/api/finishUpload` | Confirm or cancel the previewed upload |
-| GET | `/api/facilityVisualize` | Facility, unit and emissions rows for the front end |
-| POST | `/api/describeSearch` | Convert a description into search conditions with a language model |
+| POST | `/api/upload` | Validate a file and return a preview |
+| POST | `/api/finishUpload` | Confirm or cancel the upload |
+| GET | `/api/facilityVisualize` | Rows for the front end |
 
 ## Database
 
-SQLite database `epaData.db` with four tables: `Facility`, `Unit`, `AnnualRecord` and `Dataset`. A facility has many units, and a unit has one annual record per reporting year. The schema is defined in `backend/app/tables.py`.
+SQLite (`epaData.db`) with `Facility`, `Unit`, `AnnualRecord` and `Dataset` tables, defined in `backend/app/tables.py`.
 
-## Running the tests
+## Tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
-
-## Known limitations (Phase 1)
-
-* The EPA data service page does not yet call a back-end retrieval route.
-* Searching, sorting and pagination run in the browser on the rows loaded from `/api/facilityVisualize`.
-* `backend/run.py` starts the app with an in-memory database, so data is lost when the server stops.
