@@ -199,6 +199,12 @@ epaData/
 | Port 5000 or 8000 already in use       | Stop the other program, or use a different port for the front end server          |
 | Chart does not appear                  | Check your internet connection (Chart.js loads from a CDN)                        |
 
+## Known limitations (Phase 1)
+
+- The **EPA data service** page is a demo: it validates the form and logs the request but does not yet download data. Import data through **Upload data**.
+- The **Search database** page is not connected yet.
+- Search, sorting and paging run in the browser on the rows loaded from the backend.
+
 ## Data source
 
 EPA Clean Air Markets Program Data (CAMPD): https://campd.epa.gov (API: https://api.epa.gov/easey)
