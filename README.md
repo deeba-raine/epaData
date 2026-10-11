@@ -1,8 +1,21 @@
 # epaData
-
-EPA Environmental Data Management, Evaluation, and Visualization System.
-
-epaData is a Flask web application for retrieving, importing, storing and searching U.S. Environmental Protection Agency (EPA) power-sector emissions data at the facility, unit and year level.
+ 
+epaData is a Flask web application that transforms raw EPA emissions data into actionable insights. It allows users to explore power-sector emissions trends, compare generating units, and visualize environmental performance over time by retrieving, importing, storing and searching U.S. Environmental Protection Agency (EPA) data at the facility, unit and year level.
+ 
+## About the EPA and Power Plant Emissions
+ 
+The Environmental Protection Agency (EPA) is an independent agency of the United States federal government with a mission to protect human health and the environment. To achieve this, the EPA uses legal, institutional, and research measures to monitor and regulate pollutants and chemicals produced by power plants. The agency also educates the public about the hazards of these pollutants and regularly publishes open data based on its scientific research.
+ 
+## How Power Plants Report Emissions
+ 
+Power plants burn fuels to produce electricity. The emissions reporting system works like this:
+ 
+* **EGU (Emissions Generating Unit):** the machine at a power plant that actually generates electricity
+* **Emissions produced:** burning fuel produces emissions, mainly sulfur dioxide (SO₂), nitrogen oxides (NOₓ), carbon dioxide (CO₂), and mercury
+* **ECMPS:** the reporting system the EPA uses to collect emissions and operating data directly from power plant facilities
+* **CAMPD:** EPA's public data warehouse, which takes the data collected through ECMPS and publishes it in a form the public can access, search, and analyze
+epaData sits at the end of this chain: it pulls CAMPD data (or CAMPD download files), stores it in a local database, and makes it searchable.
+ 
 
 ## Features
 
