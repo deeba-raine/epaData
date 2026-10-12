@@ -1,5 +1,6 @@
 # Import Depenedencies
 from datetime import datetime, timezone
+from sqlalchemy import String, Label, DateTime
 from . import tables as table
 from . import camApi as cam
 from sqlalchemy import func
@@ -136,7 +137,7 @@ def searchUnit(fac, unit):
     )).scalar_one_or_none()
     return response
 
-def createRecord(info: tuple) -> bool:
+def createRecord(info: tuple, name: str) -> bool:
     # Add Facility and Unit if Not Already Present
     facility = db.session.get(table.Facility, getattr(info, '_3'))
     if facility is None:
@@ -161,6 +162,7 @@ def createRecord(info: tuple) -> bool:
     item = table.AnnualRecord(
         facilityID = facility.id,
         unitId = unit.key,
+        source = name,
         reportingYear = getattr(info, 'Year'),
         operatingTime = getattr(info, '_8'),
         grossLoad = None if pd.isna(getattr(info, '_9')) else getattr(info, '_9'),
@@ -182,10 +184,13 @@ def createRecord(info: tuple) -> bool:
 # Grab all of A Table
 def getAll(model=table.AnnualRecord):
     query = db.select(model)
-    return db.session.execute(query).scalars().all()
+    return db.session.execute(query).mappings().all()
 
-def search(filters: dict | None=None):
+# Search Functions (All Search, Vague Search, and Dataset Search)
+
+def search(filters: dict | None=None, conditions: dict | None=None):
     filters = filters or {}
+
     # Searchable Table Fields Dictionary for Formatting Clarity and Joining Purposes
     fields = {"facility_id": table.Facility.id, "facility_name": table.Facility.name, "state": table.Facility.state,
               "county": table.Facility.county, "latitude": table.Facility.latitude, "key": table.Unit.key,
@@ -195,13 +200,18 @@ def search(filters: dict | None=None):
               "operating_time": table.AnnualRecord.operatingTime, "gross": table.AnnualRecord.grossLoad,
               "steam_load": table.AnnualRecord.steamLoad, "heat_input": table.AnnualRecord.heatInput, "co2": table.AnnualRecord.massCo2,
               "so2": table.AnnualRecord.massSo2, "nox": table.AnnualRecord.massNox, "so2_control": table.AnnualRecord.so2ControlInfo,
-              "nox_control": table.AnnualRecord.noxControlInfo, "pm": table.AnnualRecord.pmControlInfo, "program_code": table.AnnualRecord.programCode}
+              "nox_control": table.AnnualRecord.noxControlInfo, "pm": table.AnnualRecord.pmControlInfo, "program_code": table.AnnualRecord.programCode,
+              "source": table.AnnualRecord.source}
     
-    # Join All Tables for Searching Purposes
-    query = db.select(*[c.label(n) for n, c in fields.items()]).select_from(table.AnnualRecord).join(table.Unit, table.AnnualRecord.unitId == table.Unit.key).join(table.Facility, table.AnnualRecord.facilityID == table.Facility.id)
+    # Join All Tables for Searching Purposes, Apply Conditions if It Exists
+    if conditions is None:
+        query = db.select(*[c.label(n) for n, c in fields.items()]).select_from(table.AnnualRecord).join(table.Unit, table.AnnualRecord.unitId == table.Unit.key).join(table.Facility, table.AnnualRecord.facilityID == table.Facility.id)
+    else:
+        # Conditions format: {"target": t, "fields": []}
+        query = _vagueSearch(conditions["target"], fields, conditions.get("fields", None))
 
     # Process Filters into Usable Constrains
-    ### Filters needs Two Sections: {args: {field, operator, value}, format: {group, rank, n}}
+    ### Filters needs Two Sections: {args: [{field, operator, value}], format: {group, rank, n}}
     constraints = [process(fields, f) for f in filters.get('args', [])]
     if constraints:
         query = query.where(*constraints)
@@ -211,6 +221,47 @@ def search(filters: dict | None=None):
 
     # Return Query
     return db.session.execute(query).mappings().all()
+
+def datasetSearch(t: str):
+    # Vague Search Design Using Dataset Attributes
+    fields = {"id": table.Dataset.id, "name": table.Dataset.name, "source": table.Dataset.source, 
+              "years": table.Dataset.reportingYears, "date": table.Dataset.date, 
+              "file_name": table.Dataset.fileName, "raw": table.Dataset.rawRecords,
+                "accepted": table.Dataset.acceptedRecords, "notes": table.Dataset.notes}
+    # Targets are All Fields
+    query = _vagueSearch(t, fields, fields, db.select(*[c.label(n) for n, c in fields.items()]))
+    # Return Dataset Mappings
+    return db.session.execute(query).mappings().all()
+
+def retrRecords(name: str):
+    # Retrieve Annual Records given Dataset Name (for CSV Download); Flat Rows Joined With Unit and Facility
+    return search(filters={"args": [{"field": "source", "op": "=", "value": name}]})
+
+def _vagueSearch(t: str, fields: dict, targets, query=None):
+    # Set Default Targets if None
+    if targets is None: targets = ["facility_id", "facility_name", "unit_id"]
+    # Returns All Results Where t in targets; Default to All Table
+    if query is None:
+        query = db.select(*[c.label(n) for n, c in fields.items()]).select_from(table.AnnualRecord).join(table.Unit, table.AnnualRecord.unitId == table.Unit.key).join(table.Facility, table.AnnualRecord.facilityID == table.Facility.id)
+    # Build Constraints
+    constraints = []
+    for f in targets:
+        if isinstance(fields[f].type, DateTime):
+            continue
+        if isinstance(fields[f].type, String):
+            constraints.append(process(fields, {"field": f, "op": "contains", "value": t}))
+            continue
+        try:
+            n = float(t)
+        except Exception:
+            continue
+        constraints.append(process(fields, {"field": f, "op": "=", "value": n}))
+    # OR Query Using Constraints
+    if constraints:
+        query = query.where(db.or_(*constraints))
+    else: query = query.where(db.false())
+    # Return New Query Selections to Be Filtered
+    return query
 
 # Process Filter Arguments; Seperate Function For Readability
 def process(fields, args: dict):
@@ -263,42 +314,43 @@ def form(fields, query, args):
     # Groupby Implementation
     ### group format: {group: {by: [], aggregate: [function, metric]}}
     if group:
-        # Check rank.n-if exists DO NOT collapse-
-        if rankN is None:
-            # Group By Given Metrics First
-            arg = group.get("by", None)
-            if arg is None:
-                raise ValueError("You Must Group By Something to use Group")
+        # Group By Given Metrics First
+        arg = group.get("by", None)
+        if arg is None:
+            raise ValueError("You Must Group By Something to use Group")
 
-            arg = [arg] if isinstance(arg, str) else arg
-            columns = [fields[field] for field in arg]
+        arg = [arg] if isinstance(arg, str) else arg
+        columns = [fields[field] for field in arg]
 
-            aggs = group.get("aggregate", None)
-            if aggs is not None:
-                build = list(columns)
-                for agg, metric in aggs:
-                    # Adjust Metric in Given Manner
-                    name = metric
-                    metric = fields[metric]
-                    build.append(aggregate(agg, metric).label(f"{agg}_{name}"))
-                # Create Final Query Using Build
-                query = query.with_only_columns(*build)
-            # Group After Aggregations
-            query = query.group_by(*columns)
+        aggs = group.get("aggregate", None)
+        if aggs is not None:
+            build = [fields[f].label(f) for f in arg]
+            for agg, metric in aggs:
+                # Adjust Metric in Given Manner
+                name = metric
+                metric = fields[metric]
+                res = aggregate(agg, metric).label(f"{agg}_{name}")
+                # Update build and fields
+                build.append(res)
+                fields[f"{agg}_{name}"] = res
+            # Create Final Query Using Build
+            query = query.with_only_columns(*build)
+        # Group After Aggregations
+        query = query.group_by(*columns)
 
     # Top/Bottom Order if Told To
     ### rank formatting {direction: "Top/Bottom", metric: "", n: int > 0}
     if rank:
         arg = fields[rank.get("metric", None)]
         if arg is None:
-            raise ValueError("You Need a Metric To Order By")
+            raise ValueError("You Need a Proper Metric To Order By")
 
         # Implementing This was My Life's Biggest Mistake
         columns = None
         if rankN:
-            arg2 = group.get("by", None)
+            arg2 = rank.get("partition", None)
             if arg2 is None:
-                raise ValueError("You Must Group By Something to use Group")
+                raise ValueError("You Must Specify the Partition")
 
             arg2 = [arg2] if isinstance(arg2, str) else arg2
             columns = [fields[field] for field in arg2]
@@ -321,7 +373,10 @@ def form(fields, query, args):
                 return sub
         
         direction = rank.get("direction", None)
+        # Ignore Null Values When Ordering
+        query = query.having(arg.isnot(None)) if isinstance(arg, Label) else query.where(arg.isnot(None))
         if direction and direction == 'top':
+            # Ignore Null Values When Ordering
             if rankN is None:
                 query = query.order_by(arg.desc())
             else:

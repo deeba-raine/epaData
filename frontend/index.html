@@ -7,6 +7,7 @@
     <title>epaData | Emissions Explorer</title>
 </head>
 <body>
+<!-- Everything marked NEW is an addition to the original page. The rest is the original markup. -->
 <div class="app">
     <aside class="sidebar" aria-label="Main navigation">
         <div class="brand">epaData<small>Emissions explorer</small></div>
@@ -14,6 +15,8 @@
             <button type="button" data-view="dashboard" class="active">Dashboard</button>
             <button type="button" data-view="search">Search facilities</button>
             <button type="button" data-view="dbsearch">Search database</button>
+            <!-- NEW: dataset list (back end: /searchDatasets) -->
+            <button type="button" data-view="datasets">Datasets</button>
             <button type="button" data-view="upload">Upload data</button>
             <button type="button" data-view="epa">EPA data service</button>
         </nav>
@@ -23,9 +26,13 @@
     <div class="content">
         <nav class="topbar">
             <span id="viewTitle">Dashboard</span>
-            <span>Last updated: <span id="lastUpdated">Sep 14, 2026</span></span>
+            <!-- NEW: back-end status light (back end: /health) -->
+            <span class="status" id="serverStatus" data-state="checking">Checking back end&hellip;</span>
+            <span>Last import: <span id="lastUpdated">&mdash;</span></span>
         </nav>
         <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+        <!-- NEW: suggestion lists for the Advanced search value boxes (filled from the back end's "distinct" values) -->
+        <div id="datalists" hidden></div>
 
         <main>
             <!-- DASHBOARD -->
@@ -54,7 +61,7 @@
                         <li><span>Facilities</span><strong id="kpiFacilities">0</strong></li>
                         <li><span>Total CO2</span><strong id="kpiCo2">0 t</strong></li>
                         <li><span>Total SO2</span><strong id="kpiSo2">0 t</strong></li>
-                        <li><span>Dataset imported</span><strong id="kpiImported">Sep 14, 2026</strong></li>
+                        <li><span>Latest import</span><strong id="kpiImported">&mdash;</strong></li>
                     </ul>
                 </header>
 
@@ -64,7 +71,7 @@
                             <h4>Annual emissions trend</h4>
                             <p>Reported CO2 and SO2 emissions by year</p>
                         </div>
-                        <span class="chart-source">Sample data</span>
+                        <span class="chart-source" id="chartSource">Database</span>
                     </div>
                     <div class="chart-container">
                         <canvas id="trendChart" aria-label="Annual CO2 and SO2 emissions trend" role="img"></canvas>
@@ -112,11 +119,29 @@
                     </form>
 
                     <form id="advForm" class="tab-pane" data-pane="advanced" hidden>
-                        <p class="muted">Every condition must match. Example: State = KY and CO2 &gt; 500000.</p>
+                        <p class="muted">Every condition must match (AND). Example: State = KY and CO2 &gt; 500000. Text &ldquo;equals&rdquo; is case-sensitive; use &ldquo;contains&rdquo; for loose matching.</p>
                         <div id="condRows"></div>
                         <div class="row-actions">
                             <button type="button" class="secondary-button" id="addCond">Add condition</button>
+                        </div>
+                        <!-- NEW: back end "format" options: rank, group, limit -->
+                        <details class="more-options">
+                            <summary>Ranking, grouping &amp; limits (optional)</summary>
+                            <div class="option-grid">
+                                <label>Rank by <select id="rankMetric"><option value="">No ranking</option></select></label>
+                                <label>Order <select id="rankDir"><option value="top">Highest first</option><option value="bottom">Lowest first</option></select></label>
+                                <label>Keep first N rows <input type="number" id="limitN" min="1" step="1" placeholder="All"></label>
+                                <label>&hellip;counted <select id="limitPer"><option value="">overall</option></select></label>
+                            </div>
+                            <div class="option-grid">
+                                <label>Group by <select id="groupBy"><option value="">No grouping</option></select></label>
+                                <label>Summarize <select id="aggFn"></select></label>
+                                <label>of <select id="aggMetric"></select></label>
+                            </div>
+                        </details>
+                        <div class="row-actions">
                             <button type="submit" class="primary-button">Run search</button>
+                            <button type="reset" class="secondary-button">Reset</button>
                         </div>
                     </form>
 
@@ -125,6 +150,14 @@
                             <input type="text" id="dText" placeholder="Find coal units in Kentucky with high CO2 emissions">
                         </label>
                         <button class="primary-button" type="submit">Find units</button>
+                        <!-- NEW: clickable examples -->
+                        <div class="examples">
+                            <span class="muted">Try:</span>
+                            <button type="button" class="chip-button" data-example="Find coal units in Kentucky with high CO2 emissions">Coal units in Kentucky with high CO2</button>
+                            <button type="button" class="chip-button" data-example="Natural gas units in Ohio in 2023">Natural gas in Ohio, 2023</button>
+                            <button type="button" class="chip-button" data-example="Top 3 CO2 emitters per state">Top 3 CO2 emitters per state</button>
+                            <button type="button" class="chip-button" data-example="Total SO2 by state">Total SO2 by state</button>
+                        </div>
                         <div class="interp" id="interp" hidden></div>
                     </form>
                 </section>
@@ -133,24 +166,23 @@
                     <div class="table-heading">
                         <h4>Results <span class="muted" id="resCount"></span></h4>
                         <div class="table-actions">
+                            <!-- NEW: choose which columns to show -->
+                            <details class="col-menu" id="colMenu">
+                                <summary class="secondary-button">Columns</summary>
+                                <div class="col-menu-list" id="colMenuList"></div>
+                            </details>
                             <label class="inline">Rows
-                                <select id="pageSize"><option>10</option><option>25</option><option>50</option></select>
+                                <select id="pageSize"><option>10</option><option>25</option><option>50</option><option>100</option></select>
                             </label>
                             <button type="button" class="secondary-button" id="downloadResults">Download CSV</button>
                         </div>
                     </div>
+                    <!-- NEW: shows what was searched for -->
+                    <div class="chips" id="resSummary"></div>
                     <div class="table-wrap">
-                        <table id="resultsTable">
-                            <thead><tr>
-                                <th data-key="facility" tabindex="0">Facility</th>
-                                <th data-key="id" tabindex="0">Facility ID</th>
-                                <th data-key="state" tabindex="0">State</th>
-                                <th data-key="unit" tabindex="0">Unit</th>
-                                <th data-key="fuel" tabindex="0">Fuel</th>
-                                <th data-key="co2" class="num" tabindex="0">CO2 (t)</th>
-                                <th data-key="so2" class="num" tabindex="0">SO2 (t)</th>
-                                <th data-key="year" tabindex="0">Year</th>
-                            </tr></thead>
+                        <!-- headers are now built by script.js so grouped results can show their own columns -->
+                        <table id="resultsTable" class="sortable">
+                            <thead><tr></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -162,30 +194,123 @@
                 </section>
             </section>
 
-            <!-- DATABASE SEARCH -->
+            <!-- DATABASE SEARCH: Basic / Advanced / Describe (Advanced and Describe are built by explorer.js) -->
             <section class="view" id="view-dbsearch" hidden>
                 <header><h2>Search database</h2></header>
                 <section class="panel">
-                    <form id="dbSearchForm" class="tab-pane">
+                    <div class="tabs" role="tablist" data-stabs="db">
+                        <button type="button" role="tab" data-stab="basic" class="active">Basic</button>
+                        <button type="button" role="tab" data-stab="advanced">Advanced</button>
+                        <button type="button" role="tab" data-stab="describe">Describe it</button>
+                    </div>
+
+                    <form id="dbSearchForm" class="tab-pane" data-sgroup="db" data-spane="basic">
                         <label class="grow">Search the database
-                            <input type="search" id="dbQuery" placeholder="Search facilities, units, datasets...">
+                            <input type="search" id="dbQuery" placeholder="Search facilities, units, records...">
+                        </label>
+                        <!-- which columns to look in (back end: d / exempt parameters) -->
+                        <label>Look in
+                            <select id="dbScope">
+                                <option value="names">Facility name, ID and unit ID</option>
+                                <option value="all">Every column</option>
+                                <option value="custom">Choose columns&hellip;</option>
+                            </select>
+                        </label>
+                        <label>Sort by
+                            <select id="dbSortBy"><option value="">Default order</option></select>
+                        </label>
+                        <label>Order
+                            <select id="dbSortDir"><option value="desc">High to low</option><option value="asc">Low to high</option></select>
                         </label>
                         <button class="primary-button" type="submit">Search</button>
                         <button class="secondary-button" type="reset" id="dbReset">Clear</button>
+                        <details class="more-options" id="dbFieldsBox" hidden open>
+                            <summary>Columns to search</summary>
+                            <div class="check-grid" id="dbFieldList"></div>
+                        </details>
+                    </form>
+
+                    <form id="dbAdvForm" class="tab-pane" data-sgroup="db" data-spane="advanced" hidden>
+                        <p class="muted">Build a query from any mix of conditions. Every filter must match (AND). Example: State = KY, Fuel contains coal, Year = 2025, CO2 &gt; 500000. Text &ldquo;equals&rdquo; is case-sensitive; use &ldquo;contains&rdquo; for loose matching.</p>
+                        <div class="qb-shortcuts" data-qb="shortcuts"></div>
+                        <div class="qb-list" data-qb="list"></div>
+                        <div class="row-actions">
+                            <button type="submit" class="primary-button">&#9654; Run search</button>
+                            <button type="button" class="secondary-button" data-qb="clear">Clear all</button>
+                            <button type="button" class="secondary-button" data-qb="copy">Copy JSON</button>
+                        </div>
+                        <details class="more-options">
+                            <summary>Request preview (JSON)</summary>
+                            <pre class="json-view" data-qb="json"></pre>
+                        </details>
+                    </form>
+
+                    <form id="dbDescForm" class="tab-pane" data-sgroup="db" data-spane="describe" hidden>
+                        <label class="grow">Describe what you need
+                            <input type="text" id="dbDText" placeholder="Find coal units in Kentucky with high CO2 emissions">
+                        </label>
+                        <button class="primary-button" type="submit">Search</button>
+                        <div class="examples">
+                            <span class="muted">Try:</span>
+                            <button type="button" class="chip-button" data-example="Coal units in Kentucky over 500,000 CO2">Coal in Kentucky over 500,000 CO2</button>
+                            <button type="button" class="chip-button" data-example="Top 3 SO2 emitters per state">Top 3 SO2 emitters per state</button>
+                            <button type="button" class="chip-button" data-example="Total CO2 by state">Total CO2 by state</button>
+                            <button type="button" class="chip-button" data-example="Lowest 10 NOx in 2024">Lowest 10 NOx in 2024</button>
+                        </div>
+                        <div class="interp" id="dbInterp" hidden></div>
                     </form>
                 </section>
 
                 <section class="panel">
                     <div class="table-heading">
                         <h4>Results <span class="muted" id="dbResCount"></span></h4>
+                        <!-- rows per page + CSV -->
+                        <div class="table-actions">
+                            <label class="inline">Rows
+                                <select id="dbPageSize"><option>10</option><option>25</option><option>50</option><option>100</option></select>
+                            </label>
+                            <button type="button" class="secondary-button" id="dbDownload">Download CSV</button>
+                        </div>
                     </div>
+                    <div class="chips" id="dbSummary"></div>
                     <div class="table-wrap">
-                        <table id="dbResultsTable">
+                        <table id="dbResultsTable" class="sortable">
                             <thead><tr></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
+                    <div class="pager">
+                        <button type="button" class="secondary-button" id="dbPrev">Previous</button>
+                        <span id="dbPageInfo"></span>
+                        <button type="button" class="secondary-button" id="dbNext">Next</button>
+                    </div>
                     <p class="muted" id="dbEmpty">Run a search to see results.</p>
+                </section>
+            </section>
+
+            <!-- DATASETS (Basic search only) -->
+            <section class="view" id="view-datasets" hidden>
+                <header><h2>Datasets</h2></header>
+                <section class="panel">
+                    <p class="muted">Every upload or EPA retrieval you import is recorded here. Use &ldquo;View records&rdquo; to see the rows a dataset added, or &ldquo;Download CSV&rdquo; to save them.</p>
+                    <form id="dsForm" class="tab-pane">
+                        <label class="grow">Search datasets
+                            <input type="search" id="dsQuery" placeholder="Name, source, file name or notes">
+                        </label>
+                        <button class="primary-button" type="submit">Search</button>
+                        <button class="secondary-button" type="reset" id="dsReset">Clear</button>
+                    </form>
+                </section>
+                <section class="panel">
+                    <div class="table-heading">
+                        <h4>Imported datasets <span class="muted" id="dsCount"></span></h4>
+                    </div>
+                    <div class="table-wrap">
+                        <table id="datasetsTable" class="sortable">
+                            <thead><tr></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </section>
             </section>
 
@@ -193,11 +318,11 @@
             <section class="view" id="view-upload" hidden>
                 <header><h2>Upload data</h2></header>
                 <section class="panel">
-                    <p class="muted">Upload a CSV with the columns below. Valid rows are imported; invalid rows are listed so you can fix them.</p>
-                    <code class="cols">facility, facility_id, state, unit, fuel, year, co2, so2</code>
+                    <p class="muted">Upload a .csv or .xlsx file in the CAMPD annual emissions layout: exactly these 25 columns, in this order. You get a quality report first, and nothing is saved until you click Import.</p>
+                    <code class="cols" id="uploadCols"></code>
 
                     <div class="dataset-meta">
-                        <label>Dataset name
+                        <label>Dataset name (must be unique)
                             <input type="text" id="datasetName" name="datasetName" maxlength="100" placeholder="e.g. KY annual emissions 2024" required>
                         </label>
                         <label>Notes
@@ -205,25 +330,26 @@
                         </label>
                     </div>
 
-                    <input type="file" id="dataFileInput" accept=".csv,text/csv" hidden>
+                    <input type="file" id="dataFileInput" accept=".csv,.xlsx,text/csv" hidden>
                     <div id="dropZone" class="drop" tabindex="0" role="button">
-                        <strong>Drop a CSV here</strong> or choose a file
+                        <strong>Drop a CSV or Excel file here</strong> or choose a file
                     </div>
+                    <p class="muted" id="fileName"></p>
                     <div class="row-actions">
-                        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
+                        <div class="import-box">
                             <button type="button" class="primary-button" id="importButton" disabled>
                                 Import valid rows
                             </button>
-                            <label style="font-size: 0.6rem; color: #666; display: flex; align-items: center; gap: 4px;">
+                            <label class="check-note">
                                 <input type="checkbox" id="pushQuestion">
-                                Push Questionable Rows?
+                                Also import questionable rows
                             </label>
                         </div>
 
                         <button type="button" class="secondary-button" id="cancelButton" disabled>Cancel</button>
                         <button type="button" class="secondary-button" id="templateButton">Download template</button>
                     </div>
-                    <div id="uploadReport" hidden></div>
+                    <div id="uploadReport" class="report" hidden></div>
                 </section>
             </section>
 
@@ -231,18 +357,42 @@
             <section class="view" id="view-epa" hidden>
                 <header><h2>EPA data service</h2></header>
                 <section class="panel">
-                    <p class="muted">Data comes from the EPA Clean Air Markets Program Data (CAMPD) service. The app requests annual unit-level emissions, then stores them in the local SQLite database through the back end.</p>
+                    <p class="muted">Data comes from the EPA Clean Air Markets Program Data (CAMPD) service (api.epa.gov/easey). The app requests annual unit-level emissions, runs the same quality checks as an upload, and only stores them in the local SQLite database once you confirm.</p>
                     <form id="epaForm" class="inline-form">
                         <label>State <select id="eState"></select></label>
                         <label>From year <select id="eFrom"></select></label>
                         <label>To year <select id="eTo"></select></label>
-                        <button class="primary-button" type="submit">Retrieve from EPA</button>
+                        <!-- NEW: back end reads "amount" (rows to request) and optional facility / fuel / unit filters -->
+                        <label>Max records <input type="number" id="eAmount" min="1" step="1" value="50"></label>
+                        <button class="primary-button" type="submit" id="epaSubmission">Retrieve from EPA</button>
+                        <details class="more-options" id="epaOptional">
+                            <summary>Optional filters</summary>
+                            <div class="option-grid">
+                                <label>Facility ID <input type="text" id="eFacility" inputmode="numeric" placeholder="e.g. 1356"></label>
+                                <label>Fuel type <input type="text" id="eFuel" placeholder="e.g. Coal"></label>
+                                <label>Unit type <input type="text" id="eUnit" placeholder="e.g. Tangentially-fired"></label>
+                            </div>
+                        </details>
                     </form>
                     <ol class="steps">
                         <li>Request annual emissions for the chosen state and years.</li>
-                        <li>Check each record and skip incomplete ones.</li>
-                        <li>Save facilities, units and yearly emissions to the database.</li>
+                        <li>Check each record: valid, questionable (missing useful data), rejected or duplicate.</li>
+                        <li>Review the report, then save facilities, units and yearly emissions to the database.</li>
                     </ol>
+
+                    <!-- NEW: the review step for a retrieval (back end: /secondRetrieve) -->
+                    <div id="epaReport" class="report" hidden></div>
+                    <div class="row-actions" id="epaActions" hidden>
+                        <div class="import-box">
+                            <button type="button" class="primary-button" id="epaImport" disabled>Import valid rows</button>
+                            <label class="check-note">
+                                <input type="checkbox" id="epaPushQuestion">
+                                Also import questionable rows
+                            </label>
+                        </div>
+                        <button type="button" class="secondary-button" id="epaCancel" disabled>Cancel</button>
+                    </div>
+
                     <ul class="log" id="epaLog" aria-live="polite"><li class="muted">No retrievals yet.</li></ul>
                 </section>
             </section>
@@ -252,5 +402,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="script.js"></script>
+<script src="explorer.js"></script>
 </body>
 </html>
