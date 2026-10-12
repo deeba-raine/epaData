@@ -257,6 +257,7 @@ def retrieveByState():
     start = request.args.get('from', type=int)
     end = request.args.get('to', type=int)
     years = list(range(start, end+1))
+    years = '|'.join(map(str, years))
 
     # Add Misc. Arguments to Retrieval if They Exists
     attr = {}
@@ -304,6 +305,14 @@ def retrieveByState():
     report = response.copy()
     report["Indexes"] = list(report["Indexes"])
     return jsonify({"uploadID": upid} | report)
+
+# Dataset Record Retrieval (every Annual Record a Dataset Added, for CSV Download)
+@api.post('/datasetRecords')
+def datasetRecords():
+    name = request.form.get("name")
+    if not name:
+        return jsonify({"error": "Dataset Name is Required"})
+    return jsonify({"items": [dict(x) for x in manage.retrRecords(name)]})
 
 @api.post('/secondRetrieve')
 def retrieveUpload():
