@@ -69,6 +69,21 @@ class Upload:
     def reportCheck(self, item: tuple) -> bool:
         # Clean Data
         item = self.clean(item)
+
+        # Validate Numeric Data
+        dataValidation = self.infoCheck(item)
+        reqValidation = [dataValidation[x] for x in self.reject if x in dataValidation]
+        valid = sum(1 for x in reqValidation if not x) == 1
+        if valid:
+            self.rejectedReport["items"].append(item)
+            return False
+        reqValidation = [dataValidation[x] for x in self.suspicious if x in dataValidation]
+        valid = sum(1 for x in reqValidation if not x) == 1
+        if valid:
+            self.questionableReport["items"].append(item)
+            return False
+
+        # Validate Missing Columns
         requiredInfo = [getattr(item, x) for x in self.reject]
         if any(pd.isna(x) for x in requiredInfo):
             # item is Missing Needed Info/Store and Continue
@@ -101,3 +116,27 @@ class Upload:
         field: None if pd.isna(value) else value
         for field, value in zip(item._fields, item)
         })
+
+    # Validate Numeric Values are Valid Inputs
+    def infoCheck(self, item: tuple) -> dict:
+        ret = []
+        fields = ['_3', 'Year', '_7', '_8', '_9', '_10', '_11', '_12', '_13', '_14', '_15', '_16', '_17']
+        for f in fields:
+            # Skip if None
+            check = getattr(item, f, None)
+            if check is None:
+                ret.append(True)
+                continue
+            # Non-Numeric Check
+            if not isinstance(check, (int, float, complex)):
+                # Build List of Booleans
+                ret.append(False)
+                continue
+            # Negative Check
+            if not check >= 0:
+                ret.append(False)
+                continue
+            ret.append(True)
+        # Return Dictionary
+        return dict(zip(fields, ret))
+
