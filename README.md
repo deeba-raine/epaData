@@ -139,7 +139,7 @@ Download such a file from the CAMPD data download pages (https://campd.epa.gov) 
 | Group   | Rule                                                                                                           | Imported                                 |
 | ------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | Valid   | All required fields present                                                                                    | On confirmation                          |
-| Warning | Missing gross load, SO2, CO2, NOx or heat input, or NOx or PM control info                                     | Only if Push Questionable Rows is ticked |
+| Warning | Missing gross load, SO2, CO2, NOx or or heat input                                    | Only if Push Questionable Rows is ticked |
 | Invalid | Missing State, facility name, facility ID, unit ID, year, operating time, fuel type, unit type or program code | Never                                    |
 
 Duplicate rows (same facility, unit and year) are skipped. Nothing is saved until you confirm the import, and a pending upload expires after 30 minutes.
