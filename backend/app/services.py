@@ -8,7 +8,7 @@ class Upload:
     def __init__(self, bad=None, question=None):
         # Set Defaults
         self.reject = ['State', '_2', '_3', '_4', 'Year', '_7', '_8', '_18', '_20', '_25']
-        self.suspicious = ['_9', '_17', '_13', '_11', '_15', '_22', '_23']
+        self.suspicious = ['_9', '_17', '_13', '_11', '_15']
 
         # Change if Provided
         if bad is not None:
